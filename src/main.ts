@@ -1,7 +1,7 @@
 // src/main.ts
 import { Effect, Layer } from "effect";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
-import { Http } from "@effect/platform";
+import { HttpMiddleware, HttpServer } from "@effect/platform";
 import { app } from "./router";
 import { NotionServiceLive } from "./NotionService";
 
@@ -15,7 +15,7 @@ const MainLive = Layer.provide(NotionServiceLive, HttpLive);
 // 3. Define the CORS middleware configuration.
 //    This allows requests from any origin, which is fine for development.
 //    For production, you should restrict this to your frontend's domain.
-const corsMiddleware = Http.middleware.cors({
+const corsMiddleware = HttpMiddleware.cors({
   allowedMethods: ["POST"], // Allow only POST method
   allowedHeaders: ["Content-Type"], // Allow the Content-Type header
 });
@@ -23,7 +23,7 @@ const corsMiddleware = Http.middleware.cors({
 // 4. Create the main server effect.
 //    It takes our router's app, applies the CORS middleware,
 //    and serves it.
-const server = Http.server.serve(corsMiddleware(app)).pipe(
+const server = HttpServer.serveEffect(corsMiddleware(app)).pipe(
   Effect.tap(() => Effect.log("Server running on http://localhost:3000")),
   // This ensures the server runs forever
   Effect.scoped,
