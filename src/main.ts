@@ -1,37 +1,58 @@
 // src/main.ts
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Logger } from "effect";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
-import { HttpMiddleware, HttpServer } from "@effect/platform";
-import { app } from "./router";
-import { NotionServiceLive } from "./NotionService";
+import { createServer } from "node:http";
+import * as HttpMiddleware from "@effect/platform/HttpMiddleware";
+import * as HttpServer from "@effect/platform/HttpServer";
+import { app } from "./router.js";
+import { NotionService } from "./NotionService.js";
+import { AppConfig, AppConfigProviderLive } from "./config.js";
 
-// 1. Define the HTTP server layer, specifying the port.
-const HttpLive = NodeHttpServer.layer({ port: 3000 });
+// The main application logic, dependent on AppConfig
+const Main = Effect.gen(function* () {
+  const config = yield* AppConfig;
 
-// 2. Define the main application layer by composing our service
-//    implementation with the HTTP server layer.
-const MainLive = Layer.provide(NotionServiceLive, HttpLive);
+  const corsMiddleware = HttpMiddleware.cors({
+    allowedOrigins: [config.corsOrigin],
+    allowedMethods: ["POST", "GET"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  });
 
-// 3. Define the CORS middleware configuration.
-//    This allows requests from any origin, which is fine for development.
-//    For production, you should restrict this to your frontend's domain.
-const corsMiddleware = HttpMiddleware.cors({
-  allowedMethods: ["POST"], // Allow only POST method
-  allowedHeaders: ["Content-Type"], // Allow the Content-Type header
+  // `app` is Effect<HttpApp>, evaluate it first
+  const httpApp = yield* app;
+  // Apply CORS as middleware using the curried serve overload
+  const ServerLive = HttpServer.serve(corsMiddleware)(httpApp);
+
+  // Create the server layer with the configured port
+  const HttpLive = NodeHttpServer.layer(() => createServer(), {
+    port: config.port,
+  });
+  // Provide platform default services required by HttpApp
+  const PlatformLive = HttpServer.layerContext;
+
+  // Simple program that keeps the server alive
+  const main = Effect.never.pipe(
+    Effect.provide(ServerLive),
+    Effect.provide(HttpLive),
+    Effect.provide(PlatformLive),
+    Effect.scoped,
+    Effect.tap(() =>
+      Effect.logInfo(`Server running on http://localhost:${config.port}`),
+    ),
+  );
+  // Return the program so Main has type Effect<void, E, R>
+  return yield* main.pipe(Effect.asVoid);
 });
 
-// 4. Create the main server effect.
-//    It takes our router's app, applies the CORS middleware,
-//    and serves it.
-const server = HttpServer.serveEffect(corsMiddleware(app)).pipe(
-  Effect.tap(() => Effect.log("Server running on http://localhost:3000")),
-  // This ensures the server runs forever
-  Effect.scoped,
+const AppLayers = Layer.mergeAll(
+  Logger.json,
+  AppConfigProviderLive,
+  NotionService.Default,
 );
 
-// 5. The final runnable program.
-//    We provide the composed MainLive layer to the server effect.
-const main = Effect.provide(server, MainLive);
+const Program = Main.pipe(
+  Effect.provide(AppLayers),
+  Effect.asVoid,
+) as Effect.Effect<void, never, never>;
 
-// 6. Execute the program using the Node.js runtime.
-NodeRuntime.runMain(main);
+NodeRuntime.runMain(Program);

@@ -1,0 +1,4 @@
+[test]
+# Only run TypeScript tests from test/ and ignore compiled JS in dist/
+include = ["test/**/*.test.ts"]
+exclude = ["dist/**", "node_modules/**"]

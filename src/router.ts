@@ -1,86 +1,124 @@
 // src/router.ts
 import { Effect } from "effect";
-import { Http } from "@effect/platform";
-import { NotionService } from "./NotionService";
-import { NotionError } from "./NotionClient";
-import * as Schema from "./schema";
+import type * as HttpApp from "@effect/platform/HttpApp";
+import * as HttpRouter from "@effect/platform/HttpRouter";
+import * as HttpServerRequest from "@effect/platform/HttpServerRequest";
+import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
+import { NotionService } from "./NotionService.js";
+import * as ApiSchema from "./schema.js";
+import { validateListArticlesRequestAgainstSchema } from "./validation.js";
 
-// Create a new router
-const router = Http.router.empty.pipe(
-  // 1. Endpoint to list articles
-  Http.router.post(
+const apiRouter = HttpRouter.empty.pipe(
+  // --- Endpoints ---
+  HttpRouter.post(
     "/api/list-articles",
     Effect.gen(function* () {
-      const request = yield* Http.request.ServerRequest;
-      const body = yield* request.schemaBodyJson(
-        Schema.ListArticlesRequestSchema,
-      );
+      const body: ApiSchema.ListArticlesRequest = yield* HttpServerRequest
+        .schemaBodyJson(ApiSchema.ListArticlesRequestSchema, { onExcessProperty: "error" });
 
       const notionService = yield* NotionService;
+
+      // Schema-aware validation (titlePropertyName, filters, sorts)
+      const schema = yield* notionService.getDatabaseSchema(body.databaseId);
+      const errors = validateListArticlesRequestAgainstSchema(body, schema);
+      if (errors.length > 0) {
+        return yield* HttpServerResponse.json({ errors }, { status: 400 });
+      }
+
       const articles = yield* notionService.listArticles(
-        body.apiKey,
         body.databaseId,
+        body.titlePropertyName,
+        body.filter,
+        body.sorts,
       );
 
-      return yield* Http.response.schemaJson(Schema.ListArticlesResponseSchema)(
+      return yield* HttpServerResponse.schemaJson(
+        ApiSchema.ListArticlesResponseSchema,
+      )(
         articles,
       );
     }),
   ),
-
-  // 2. Endpoint to get article content
-  Http.router.post(
+  HttpRouter.get(
     "/api/get-article-content",
     Effect.gen(function* () {
-      const request = yield* Http.request.ServerRequest;
-      const body = yield* request.schemaBodyJson(
-        Schema.GetArticleContentRequestSchema,
+      const query = yield* HttpServerRequest.schemaSearchParams(
+        ApiSchema.GetArticleContentRequestSchema,
       );
-
       const notionService = yield* NotionService;
-      const content = yield* notionService.getArticleContent(
-        body.apiKey,
-        body.pageId,
-      );
+      const content = yield* notionService.getArticleContent(query.pageId);
 
-      return yield* Http.response.schemaJson(
-        Schema.GetArticleContentResponseSchema,
+      return yield* HttpServerResponse.schemaJson(
+        ApiSchema.GetArticleContentResponseSchema,
       )({ content });
     }),
   ),
-
-  // 3. Endpoint to update article content
-  Http.router.post(
+  HttpRouter.post(
     "/api/update-article-content",
     Effect.gen(function* () {
-      const request = yield* Http.request.ServerRequest;
-      const body = yield* request.schemaBodyJson(
-        Schema.UpdateArticleContentRequestSchema,
-      );
+      const body: ApiSchema.UpdateArticleContentRequest =
+        yield* HttpServerRequest.schemaBodyJson(
+          ApiSchema.UpdateArticleContentRequestSchema,
+        );
 
       const notionService = yield* NotionService;
       yield* notionService.updateArticleContent(
-        body.apiKey,
         body.pageId,
         body.content,
       );
 
       // On success, return a 204 No Content response
-      return Http.response.empty({ status: 204 });
+      return HttpServerResponse.empty({ status: 204 });
     }),
+  ),
+  // Health check endpoint (JSON 200)
+  HttpRouter.get(
+    "/api/health",
+    HttpServerResponse.json({ ok: true }, { status: 200 }),
+  ),
+  // Simple ping route (clear 200 with payload)
+  HttpRouter.get(
+    "/api/ping",
+    HttpServerResponse.json({ ok: true, ts: Date.now() }),
   ),
 );
 
-// Create the final Http App, including error handling
-export const app = Http.router.toHttpApp(router).pipe(
-  // Catch our specific NotionError and format it as a 500 response
-  Http.middleware.catchTag("NotionError", (e) =>
-    Http.response.json(
-      {
-        error: "Internal Server Error",
-        cause: e.cause, // Include the underlying cause for debugging
-      },
+// --- Full App with Error Handling ---
+const routerWithErrors = apiRouter.pipe(
+  HttpRouter.catchTags({
+    InvalidApiKeyError: () =>
+      HttpServerResponse.text(
+        JSON.stringify({ error: "Invalid API Key" }),
+        { status: 401 },
+      ),
+    NotFoundError: () =>
+      HttpServerResponse.text(
+        JSON.stringify({ error: "Resource not found" }),
+        { status: 404 },
+      ),
+    InternalServerError: () =>
+      HttpServerResponse.text(
+        JSON.stringify({ error: "Internal Server Error" }),
+        { status: 500 },
+      ),
+    // Ensure unmatched routes produce a 404 response
+    RouteNotFound: () =>
+      HttpServerResponse.text(
+        JSON.stringify({ error: "Not Found" }),
+        { status: 404 },
+      ),
+  }),
+  // Final safety net to ensure no errors escape the router
+  HttpRouter.catchAll((e) =>
+    HttpServerResponse.text(
+      JSON.stringify({
+        error: "Unhandled error",
+        detail: (e instanceof Error) ? e.message : String(e),
+      }),
       { status: 500 },
     ),
   ),
 );
+
+// Convert to HttpApp and assert branding so the adapter accepts it
+export const app = HttpRouter.toHttpApp(routerWithErrors) as unknown as HttpApp.Default<NotionService, never>;

@@ -1,79 +1,80 @@
 // test/NotionService.integration.test.ts
 import { describe, it, expect } from "vitest";
-import { Effect } from "effect";
-import { test } from "@effect/test";
-import { NotionService, NotionServiceLive } from "@/NotionService";
+import { Effect, Layer } from "effect";
+import { NotionService } from "../src/NotionService.js";
+import { AppConfigProviderLive } from "../src/config.js";
+import { NotionClient } from "../src/NotionClient.js";
 import * as dotenv from "dotenv";
 
 // Load environment variables from .env file
 dotenv.config();
 
-const { NOTION_API_KEY, NOTION_PAGE_ID } = process.env;
+const { NOTION_PAGE_ID } = process.env;
+
+// The main test layer that provides all dependencies
+const TestLayer = Layer.provide(
+  NotionService.Default,
+  Layer.merge(NotionClient.Default, AppConfigProviderLive)
+);
 
 // Conditionally skip the entire test suite if credentials are not provided
-describe.skipIf(!NOTION_API_KEY || !NOTION_PAGE_ID)(
+describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_PAGE_ID)(
   "NotionService (Integration)",
   () => {
-    it("should update a real Notion page and then restore it", () =>
-      Effect.gen(function* () {
-        const service = yield* NotionService;
-        const apiKey = NOTION_API_KEY!;
-        const pageId = NOTION_PAGE_ID!;
+    it(
+      "should update a real Notion page and then restore it",
+      async () =>
+        await Effect.runPromise(
+          Effect.gen(function* () {
+            const service = yield* NotionService;
+            const pageId = NOTION_PAGE_ID!;
 
-        const testContent = `This is a test run at ${new Date().toISOString()}.
+            const testContent = `This is a test run at ${new Date().toISOString()}.
 Second line.`;
 
-        // The core test logic is wrapped in acquireRelease to guarantee cleanup
-        const testWithCleanup = Effect.acquireRelease(
-          // 1. Acquire: Get the original content of the page
-          service
-            .getArticleContent(apiKey, pageId)
-            .pipe(
-              Effect.tap(() =>
-                Effect.log("Acquired original page content."),
-              ),
-            ),
+            // Use a scoped region with two-arg acquireRelease (acquire, release)
+            yield* Effect.scoped(
+              Effect.gen(function* () {
+                const originalContent: string = yield* Effect.acquireRelease(
+                  // Acquire: original content
+                  service
+                    .getArticleContent(pageId)
+                    .pipe(
+                      Effect.tap(() =>
+                        Effect.log("Acquired original page content."),
+                      ),
+                    ),
+                  // Release: restore original content
+                  (original) =>
+                    service
+                      .updateArticleContent(pageId, original)
+                      .pipe(
+                        Effect.tap(() =>
+                          Effect.log(
+                            "Successfully restored page content.",
+                          ),
+                        ),
+                        Effect.orDie,
+                      ),
+                );
 
-          // 2. Use: Run the test assertions
-          () =>
-            Effect.gen(function* () {
-              // Update the page with new test content
-              yield* service.updateArticleContent(
-                apiKey,
-                pageId,
-                testContent,
-              );
-              Effect.log("Updated page with test content.");
+                // Use: update and assert
+                yield* service.updateArticleContent(
+                  pageId,
+                  testContent,
+                );
+                Effect.log("Updated page with test content.");
 
-              // Read the content back from the API
-              const newContent = yield* service.getArticleContent(
-                apiKey,
-                pageId,
-              );
-
-              // Assert that the update was successful
-              expect(newContent).toBe(testContent);
-            }),
-
-          // 3. Release: Restore the page to its original content
-          (originalContent) =>
-            service
-              .updateArticleContent(apiKey, pageId, originalContent)
-              .pipe(
-                Effect.tap(() =>
-                  Effect.log("Successfully restored page content."),
-                ),
-                Effect.orDie, // If cleanup fails, it's a critical error
-              ),
-        );
-
-        // Execute the entire acquire-use-release flow
-        yield* testWithCleanup;
-      }).pipe(
-        // Provide the REAL service layer for this integration test
-        Effect.provide(NotionServiceLive),
-        // Set a longer timeout to account for network latency
-        test({ timeout: 20000 }),
-      ));
+                const newContent = yield* service.getArticleContent(
+                  pageId,
+                );
+                expect(newContent).toBe(testContent);
+              }),
+            );
+          }).pipe(Effect.provide(TestLayer)),
+        ),
+      20000,
+    );
   },
 );
+

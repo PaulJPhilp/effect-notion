@@ -1,170 +1,377 @@
-// src/NotionService.ts
-import { Effect, Layer, ReadonlyArray, Chunk } from "effect";
-import {
-  NotionClient,
-  NotionError,
-  NotionListResponse,
-} from "./NotionClient";
-import { Schema } from "@effect/schema";
+import { Context, Effect, Layer, Chunk, Option, Ref } from "effect";
+import { NotionClient, InternalServerError } from "./NotionClient.js";
+import type { NotionError } from "./NotionClient.js";
+import { AppConfig, AppConfigProviderLive, resolveTitleOverride } from "./config.js";
+import { lexer } from "marked";
+import type { Block, NormalizedDatabaseSchema, Database, NotionBlockInput } from "./NotionSchema.js";
+import { getTitleFromPage } from "./NotionAccessors.js";
 
 // =============================================================================
-// Schemas for safely parsing Notion's 'any' responses
+// Transformation Logic
 // =============================================================================
 
-const NotionPageSchema = Schema.Struct({
-  id: Schema.String,
-  properties: Schema.Struct({
-    // Assuming the main title property is named "Name" or "Title".
-    // This might need adjustment based on the actual database schema.
-    Name: Schema.Struct({
-      title: Schema.Array(
-        Schema.Struct({ plain_text: Schema.String }),
-      ),
-    }),
-  }),
-});
+const getText = (richText: ReadonlyArray<{ plain_text: string }>): string =>
+  richText.map((t) => t.plain_text).join("");
 
-const NotionBlockSchema = Schema.Struct({
-  id: Schema.String,
-  type: Schema.String,
-  paragraph: Schema.optional(
-    Schema.Struct({
-      rich_text: Schema.Array(
-        Schema.Struct({ plain_text: Schema.String }),
-      ),
-    }),
-  ),
-});
+const notionBlocksToMarkdown = (blocks: ReadonlyArray<Block>): string => {
+  const markdownLines = blocks.map((block) => {
+    switch (block.type) {
+      case "paragraph":
+        return getText(block.paragraph.rich_text);
+      case "heading_2":
+        return `## ${getText(block.heading_2.rich_text)}`;
+      case "bulleted_list_item":
+        return `* ${getText(block.bulleted_list_item.rich_text)}`;
+      case "code":
+        return [
+          "```" + (block.code.language || ""),
+          getText(block.code.rich_text),
+          "```",
+        ].join("\n");
+    }
+  });
+  return markdownLines.join("\n\n");
+};
 
-// =============================================================================
-// Service Definition (`Effect.Service` pattern)
-// =============================================================================
+const markdownToNotionBlocks = (
+  markdown: string,
+): ReadonlyArray<NotionBlockInput> => {
+  const tokens = lexer(markdown);
+  const blocks: Array<NotionBlockInput> = [];
 
-export class NotionService extends Effect.Service("NotionService") {
-  // High-level interface matching our API needs
-  abstract readonly listArticles: (
-    apiKey: string,
-    databaseId: string,
-  ) => Effect.Effect<
-    ReadonlyArray<{ id: string; title: string }>,
-    NotionError
-  >;
-
-  abstract readonly getArticleContent: (
-    apiKey: string,
-    pageId: string,
-  ) => Effect.Effect<string, NotionError>;
-
-  abstract readonly updateArticleContent: (
-    apiKey: string,
-    pageId: string,
-    content: string,
-  ) => Effect.Effect<void, NotionError>;
-}
-
-// =============================================================================
-// Live Implementation
-// =============================================================================
-
-export const NotionServiceLive = NotionService.implement(
-  Effect.gen(function* () {
-    const notionClient = yield* NotionClient;
-
-    // A reusable helper to handle Notion's cursor-based pagination
-    const getAllPaginatedResults = (
-      fetchFn: (
-        cursor?: string,
-      ) => Effect.Effect<NotionListResponse, NotionError>,
-    ) =>
-      Effect.paginate(fetchFn(), (response) =>
-        response.has_more && response.next_cursor.isSome()
-          ? Effect.succeed(fetchFn(response.next_cursor.value))
-          : Effect.fail(void 0),
-      ).pipe(
-        Effect.map((chunk) => chunk.flatMap((res) => res.results)),
-        Effect.scoped, // Paginate is scoped, so we must lift it
-      );
-
-    return {
-      // 1. Implements listing articles
-      listArticles: (apiKey, databaseId) =>
-        notionClient.queryDatabase(apiKey, databaseId).pipe(
-          Effect.flatMap((response) =>
-            Schema.decode(Schema.Array(NotionPageSchema))(response.results),
-          ),
-          Effect.map((pages) =>
-            pages.map((page) => ({
-              id: page.id,
-              // Safely extract title, providing a fallback
-              title:
-                page.properties.Name.title[0]?.plain_text ?? "Untitled",
-            })),
-          ),
-          Effect.mapError(
-            (cause) => new NotionError({ cause: "Schema decoding failed" }),
-          ),
-        ),
-
-      // 2. Implements fetching and concatenating all page content
-      getArticleContent: (apiKey, pageId) =>
-        getAllPaginatedResults(() =>
-          notionClient.retrieveBlockChildren(apiKey, pageId),
-        ).pipe(
-          Effect.flatMap((blocks) =>
-            Schema.decode(Schema.Array(NotionBlockSchema))(blocks),
-          ),
-          Effect.map((blocks) =>
-            blocks
-              .filter((block) => block.type === "paragraph")
-              .flatMap(
-                (block) =>
-                  block.paragraph?.rich_text.map((rt) => rt.plain_text) ??
-                  [],
-              )
-              .join("\n"),
-          ),
-          Effect.mapError(
-            (cause) => new NotionError({ cause: "Schema decoding failed" }),
-          ),
-        ),
-
-      // 3. Implements the full "delete-then-append" update logic
-      updateArticleContent: (apiKey, pageId, content) =>
-        Effect.gen(function* () {
-          // First, get all existing block IDs
-          const existingBlocks = yield* getAllPaginatedResults(() =>
-            notionClient.retrieveBlockChildren(apiKey, pageId),
-          );
-          const blockIds = yield* Schema.decode(
-            Schema.Array(Schema.Struct({ id: Schema.String })))
-            (existingBlocks).pipe(
-            Effect.map((blocks) => blocks.map((b) => b.id)),
-            Effect.mapError(
-              (cause) =>
-                new NotionError({ cause: "Failed to decode block IDs" }),
-            ),
-          );
-
-          // Delete all existing blocks in parallel
-          yield* Effect.forEach(blockIds, (id) => notionClient.deleteBlock(apiKey, id), {
-            concurrency: "unbounded",
+  for (const token of tokens) {
+    switch (token.type) {
+      case "heading":
+        if (token.depth === 2) {
+          blocks.push({
+            object: "block",
+            type: "heading_2",
+            heading_2: { rich_text: [{ text: { content: token.text } }] },
           });
-
-          // Create new paragraph blocks from the content string
-          const newBlocks = content.split("\n").map((line) => ({
-            object: "block" as const,
-            type: "paragraph" as const,
-            paragraph: {
-              rich_text: [{ type: "text" as const, text: { content: line } }],
+        }
+        break;
+      case "paragraph":
+        blocks.push({
+          object: "block",
+          type: "paragraph",
+          paragraph: { rich_text: [{ text: { content: token.text } }] },
+        });
+        break;
+      case "list":
+        for (const item of token.items) {
+          blocks.push({
+            object: "block",
+            type: "bulleted_list_item",
+            bulleted_list_item: {
+              rich_text: [{ text: { content: item.text } }],
             },
-          }));
+          });
+        }
+        break;
+      case "code":
+        blocks.push({
+          object: "block",
+          type: "code",
+          code: {
+            rich_text: [{ text: { content: token.text } }],
+            language: token.lang || "plain text",
+          },
+        });
+        break;
+    }
+  }
+  return blocks;
+};
 
-          // Append new blocks in batches of 100 (Notion API limit)
-          const batches = Chunk.chunksOf(newBlocks, 100);
-          yield* Effect.forEach(batches, (batch) =>
-            notionClient.appendBlockChildren(apiKey, pageId, Chunk.toReadonlyArray(batch)),
-          );
-        }).pipe(Effect.asUnit),
-    };
-  }),
-).pipe(Layer.provide(NotionClientLive)); // Provide the dependency
+// =============================================================================
+// 3. Service Definition
+// =============================================================================
+
+export class NotionService extends Effect.Service<NotionService>()(
+  "NotionService",
+  {
+    accessors: true,
+    dependencies: [NotionClient.Default, AppConfigProviderLive],
+    effect: Effect.gen(function* () {
+      const notionClient = yield* NotionClient;
+      const { notionApiKey } = yield* AppConfig;
+
+      // -----------------------------------------------------------------------------
+      // Runtime database schema discovery & cache
+      // -----------------------------------------------------------------------------
+      type CacheEntry = { schema: NormalizedDatabaseSchema; fetchedAt: number };
+      const schemaCacheRef = yield* Ref.make(
+        new Map<string, CacheEntry>(),
+      );
+      const SCHEMA_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+      const hashString = (input: string): string => {
+        let h = 5381;
+        for (let i = 0; i < input.length; i++) {
+          h = (h * 33) ^ input.charCodeAt(i);
+        }
+        return (h >>> 0).toString(16);
+      };
+
+      const normalizeDatabase = (
+        database: Database,
+      ): NormalizedDatabaseSchema => {
+        const entries = Object.entries(database.properties);
+        const properties = entries.map(([name, value]) => ({
+          name,
+          type: value?.type ?? "unknown",
+          config: value,
+        }));
+        const titleProp = properties.find((p) => p.type === "title");
+        const propertiesHash = hashString(
+          JSON.stringify(properties.map((p) => ({ name: p.name, type: p.type }))),
+        );
+        return {
+          databaseId: database.id,
+          titlePropertyName: titleProp ? titleProp.name : null,
+          properties,
+          lastEditedTime: database.last_edited_time,
+          propertiesHash,
+        };
+      };
+
+      const getNormalizedSchema = (
+        databaseId: string,
+      ): Effect.Effect<NormalizedDatabaseSchema, NotionError> =>
+        Effect.gen(function* () {
+          const now = Date.now();
+          const cache = yield* Ref.get(schemaCacheRef);
+          const existing = cache.get(databaseId);
+          if (existing && now - existing.fetchedAt < SCHEMA_TTL_MS) {
+            return existing.schema;
+          }
+
+          // Attempt to retrieve fresh schema. On failure, propagate error.
+          const db = yield* notionClient
+            .retrieveDatabase(notionApiKey, databaseId)
+            .pipe(
+              Effect.tapError((e) =>
+                Effect.logWarning(
+                  `retrieveDatabase failed for databaseId=${databaseId}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`,
+                ),
+              ),
+              Effect.mapError((e) => e as NotionError),
+            );
+
+          const normalized = normalizeDatabase(db);
+
+          // Invalidate/replace if changed
+          if (
+            existing &&
+            (existing.schema.propertiesHash !== normalized.propertiesHash ||
+              existing.schema.lastEditedTime !== normalized.lastEditedTime)
+          ) {
+            yield* Effect.logInfo(
+              `Schema changed for database ${databaseId}; lastEditedTime=${normalized.lastEditedTime}`,
+            );
+          }
+          cache.set(databaseId, { schema: normalized, fetchedAt: now });
+          yield* Ref.set(schemaCacheRef, cache);
+          return normalized;
+        });
+
+      // Expose stale cache so callers can decide to fallback
+      const getCachedSchema = (
+        databaseId: string,
+      ): Effect.Effect<Option.Option<NormalizedDatabaseSchema>> =>
+        Effect.gen(function* () {
+          const cache = yield* Ref.get(schemaCacheRef);
+          const existing = cache.get(databaseId);
+          return existing ? Option.some(existing.schema) : Option.none();
+        });
+
+      const invalidateSchema = (
+        databaseId: string,
+      ): Effect.Effect<void> =>
+        Ref.update(schemaCacheRef, (m) => {
+          m.delete(databaseId);
+          return m;
+        });
+
+      // Simple pagination loop accumulating all results
+      const getAllPaginatedResults = <T extends {
+        has_more: boolean;
+        next_cursor: Option.Option<string>;
+        results: ReadonlyArray<unknown>;
+      }>(
+        fetchFn: (cursor?: string) => Effect.Effect<T, NotionError>,
+      ): Effect.Effect<ReadonlyArray<T["results"][number]>, NotionError> =>
+        Effect.gen(function* () {
+          let cursor: string | undefined = undefined;
+          let all: Array<T["results"][number]> = [];
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            const page: T = yield* fetchFn(cursor);
+            all = all.concat(Array.from(page.results));
+            if (!page.has_more) break;
+            cursor = Option.getOrUndefined(page.next_cursor);
+            if (!cursor) break;
+          }
+          return all as ReadonlyArray<T["results"][number]>;
+        });
+
+      // Accessors are centralized in NotionAccessors.ts
+
+      return {
+        // Expose normalized schema retrieval to callers for validation and UI
+        // decisions. Errors propagate; callers decide on fallbacks.
+        getDatabaseSchema: (
+          databaseId: string,
+        ): Effect.Effect<NormalizedDatabaseSchema, NotionError> =>
+          getNormalizedSchema(databaseId),
+
+        listArticles: (
+          databaseId: string,
+          titlePropertyName?: string,
+          filter?: unknown,
+          sorts?: unknown,
+        ): Effect.Effect<
+          ReadonlyArray<{ id: string; title: string }>,
+          NotionError
+        > =>
+          // Discover schema first (and cache it). If fetching fails, optionally
+          // fall back to stale cache; otherwise propagate error.
+          Effect.catchAll(
+            getNormalizedSchema(databaseId),
+            (err) =>
+              Effect.gen(function* () {
+                yield* Effect.logWarning(
+                  `getNormalizedSchema failed for databaseId=${databaseId}; falling back to stale cache if available; errorTag=${(err as NotionError)?._tag ?? "Unknown"}`,
+                );
+                const cached = yield* getCachedSchema(databaseId);
+                if (Option.isSome(cached)) {
+                  return cached.value;
+                }
+                // No cache, re-fail with detailed context
+                return yield* Effect.fail(err);
+              }),
+          ).pipe(
+            Effect.flatMap((schema) =>
+              notionClient
+                .queryDatabase(notionApiKey, databaseId, { filter, sorts })
+                .pipe(
+                  Effect.tapError((e) =>
+                    Effect.logWarning(
+                      `queryDatabase failed for databaseId=${databaseId}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`,
+                    ),
+                  ),
+                  // Ensure only NotionError escapes
+                  Effect.mapError((e) => e as NotionError),
+                  Effect.map((response) => {
+                    const titleKey: string | undefined =
+                      titlePropertyName ??
+                      resolveTitleOverride(databaseId) ??
+                      (schema.titlePropertyName ?? undefined);
+                    if (!titleKey) {
+                      void Effect.runPromise(
+                        Effect.logWarning(
+                          `Title property not found in schema for database ${databaseId}; using fallback "Untitled"`,
+                        ),
+                      );
+                    }
+                    return response.results.map((page) => {
+                      const title = getTitleFromPage(
+                        page,
+                        schema,
+                        titleKey,
+                      );
+                      // If schema said there is a title property but we couldn't
+                      // decode it, trigger invalidation for next time.
+                      if (schema.titlePropertyName && title === "Untitled") {
+                        void Effect.runPromise(
+                          Effect.zipRight(
+                            Effect.logWarning(
+                              `Failed to decode title for page ${page.id}; invalidating schema cache for ${databaseId}`,
+                            ),
+                            invalidateSchema(databaseId),
+                          ),
+                        );
+                      }
+                      return { id: page.id, title };
+                    });
+                  }),
+                ),
+            ),
+          ),
+
+        getArticleContent: (
+          pageId: string,
+        ): Effect.Effect<string, NotionError> =>
+          getAllPaginatedResults((cursor) =>
+            notionClient
+              .retrieveBlockChildren(notionApiKey, pageId, cursor)
+              .pipe(
+                Effect.tapError((e) =>
+                  Effect.logWarning(
+                    `retrieveBlockChildren failed for pageId=${pageId}; cursor=${cursor ?? "<none>"}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`,
+                  ),
+                ),
+                Effect.mapError((e) => e as NotionError),
+              ),
+          ).pipe(Effect.map(notionBlocksToMarkdown)),
+
+        updateArticleContent: (
+          pageId: string,
+          content: string,
+        ): Effect.Effect<void, NotionError> =>
+          Effect.gen(function* () {
+            const existingBlocks = yield* getAllPaginatedResults((cursor) =>
+              notionClient
+                .retrieveBlockChildren(notionApiKey, pageId, cursor)
+                .pipe(
+                  Effect.tapError((e: NotionError) =>
+                    Effect.logWarning(
+                      `retrieveBlockChildren failed during update for pageId=${pageId}; cursor=${cursor ?? "<none>"}; errorTag=${e._tag ?? "Unknown"}`,
+                    ),
+                  ),
+                  Effect.mapError((e) => e as NotionError),
+                ),
+            );
+            const blockIds = existingBlocks.map((b: { id: string }) => b.id);
+
+            yield* Effect.forEach(
+              blockIds,
+              (id) =>
+                notionClient
+                  .deleteBlock(notionApiKey, id)
+                  .pipe(
+                    Effect.tapError((e) =>
+                      Effect.logWarning(
+                        `deleteBlock failed for pageId=${pageId}; blockId=${id}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`,
+                      ),
+                    ),
+                  ),
+              { concurrency: "unbounded" },
+            );
+
+            const newBlocks = markdownToNotionBlocks(content);
+
+            const batches = Chunk.chunksOf(Chunk.fromIterable(newBlocks), 100);
+            yield* Effect.forEach(
+              batches,
+              (batch) =>
+                notionClient
+                  .appendBlockChildren(
+                    notionApiKey,
+                    pageId,
+                    Chunk.toReadonlyArray(batch),
+                  )
+                  .pipe(
+                    Effect.tapError((e) =>
+                      Effect.logWarning(
+                        `appendBlockChildren failed for pageId=${pageId}; batchSize=${Chunk.size(batch)}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`,
+                      ),
+                    ),
+                  ),
+              { concurrency: 1 },
+            );
+          }).pipe(Effect.asVoid),
+      };
+    }),
+  },
+) {}
