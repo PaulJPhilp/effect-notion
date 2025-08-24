@@ -25,6 +25,15 @@ Your frontend makes requests to this server, and this server, which securely sto
 - **Built with Effect**: Leverages the Effect library for a highly performant, concurrent, and error-resilient server.
 - **Ready to Deploy**: Includes configurations for easy deployment to services like Vercel.
 
+## Runtime and adapters
+
+- `src/router.ts`: Pure Effect-based `HttpApp` with all routes. This is the
+  single source of truth (no adapter bypasses).
+- `api/index.ts`: Vercel Node v3 adapter. Materializes the Effect app into a
+  Fetch-style handler and bridges to Node's `IncomingMessage/ServerResponse`.
+- `src/main.ts`: Local Bun server entry for development using Effect's Node
+  HTTP server integration.
+
 ## Configuration & Security
 
 This server is designed to be the **sole keeper** of your `NOTION_API_KEY`. The key must be configured on the server as an environment variable and should never be exposed to or sent from your client-side application.
@@ -65,6 +74,7 @@ cp .env.example .env
 ```json
 {
   "databaseId": "YOUR_NOTION_DATABASE_ID",
+  "titlePropertyName": "Name",
   "filter": { 
     "property": "Status", 
     "select": { "equals": "Published" } 
@@ -79,14 +89,15 @@ cp .env.example .env
 
 ```bash
 curl -X POST http://localhost:3000/api/list-articles \
--H "Content-Type: application/json" \
--d '{
-  "databaseId": "<YOUR_DATABASE_ID>",
-  "filter": {
-    "property": "Status",
-    "select": { "equals": "Published" }
-  }
-}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "databaseId": "<YOUR_DATABASE_ID>",
+    "titlePropertyName": "Name",
+    "filter": {
+      "property": "Status",
+      "select": { "equals": "Published" }
+    }
+  }'
 ```
 
 ### Get Article Content
@@ -129,10 +140,7 @@ curl -X POST http://localhost:3000/api/update-article-content \
 }'
 ```
 
-### Health Check
-
-- **Endpoint**: `GET /api/health`
-- **Description**: A simple health check endpoint that returns a `200 OK` response.
+<!-- Health check removed: no explicit /api/health route in router. -->
 
 ## Advanced Features
 
@@ -166,7 +174,7 @@ For maximum type safety and to catch schema-related errors at compile-time inste
 1.  **Ensure your `.env` file has `NOTION_API_KEY` and `NOTION_DATABASE_ID` set.**
 2.  **Run the codegen script:**
     ```bash
-    bun run codegen
+    bun run codegen:notion
     ```
 3.  **The script will create `src/NotionSchema.ts` with your database's schema.**
 
@@ -190,9 +198,10 @@ The server is configured for easy deployment on Vercel. Simply connect your repo
 
 Contributions are welcome! Please feel free to open an issue or submit a pull request.
 
-Before submitting a pull request, please ensure your code adheres to the project's style by running:
+Before submitting a pull request, please ensure the project builds and tests
+pass:
 
 ```bash
-bun run format
-bun run lint
+bun run build    # type-check
+bun test         # run tests
 ```
