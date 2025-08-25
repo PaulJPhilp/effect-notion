@@ -230,8 +230,10 @@ export class NotionService extends Effect.Service<NotionService>()(
           titlePropertyName?: string,
           filter?: unknown,
           sorts?: unknown,
+          pageSize?: number,
+          startCursor?: string,
         ): Effect.Effect<
-          ReadonlyArray<{ id: string; title: string }>,
+          { results: ReadonlyArray<{ id: string; title: string }>; hasMore: boolean; nextCursor: Option.Option<string> },
           NotionError
         > =>
           // Discover schema first (and cache it). If fetching fails, optionally
@@ -253,7 +255,12 @@ export class NotionService extends Effect.Service<NotionService>()(
           ).pipe(
             Effect.flatMap((schema) =>
               notionClient
-                .queryDatabase(notionApiKey, databaseId, { filter, sorts })
+                .queryDatabase(notionApiKey, databaseId, {
+                  filter,
+                  sorts,
+                  start_cursor: startCursor,
+                  page_size: pageSize,
+                })
                 .pipe(
                   Effect.tapError((e) =>
                     Effect.logWarning(
@@ -274,7 +281,7 @@ export class NotionService extends Effect.Service<NotionService>()(
                         ),
                       );
                     }
-                    return response.results.map((page) => {
+                    const results = response.results.map((page) => {
                       const title = getTitleFromPage(
                         page,
                         schema,
@@ -294,6 +301,11 @@ export class NotionService extends Effect.Service<NotionService>()(
                       }
                       return { id: page.id, title };
                     });
+                    return {
+                      results,
+                      hasMore: response.has_more,
+                      nextCursor: response.next_cursor,
+                    };
                   }),
                 ),
             ),
@@ -314,6 +326,21 @@ export class NotionService extends Effect.Service<NotionService>()(
                 Effect.mapError((e) => e as NotionError),
               ),
           ).pipe(Effect.map(notionBlocksToMarkdown)),
+
+        getArticleMetadata: (
+          pageId: string,
+        ): Effect.Effect<{ properties: unknown }, NotionError> =>
+          notionClient
+            .retrievePage(notionApiKey, pageId)
+            .pipe(
+              Effect.tapError((e) =>
+                Effect.logWarning(
+                  `retrievePage failed for pageId=${pageId}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`,
+                ),
+              ),
+              Effect.mapError((e) => e as NotionError),
+              Effect.map((page) => ({ properties: page.properties as unknown })),
+            ),
 
         updateArticleContent: (
           pageId: string,

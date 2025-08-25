@@ -17,6 +17,7 @@ import * as HttpRouter from "@effect/platform/HttpRouter";
 import * as HttpServerRequest from "@effect/platform/HttpServerRequest";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
 import { NotionService } from "./NotionService.js";
+import { AppConfig } from "./config.js";
 import * as ApiSchema from "./schema.js";
 import { validateListArticlesRequestAgainstSchema } from "./validation.js";
 
@@ -29,7 +30,7 @@ const apiRouter = HttpRouter.empty.pipe(
       const body: ApiSchema.ListArticlesRequest = yield* HttpServerRequest
         .schemaBodyJson(ApiSchema.ListArticlesRequestSchema, { onExcessProperty: "error" });
       yield* Effect.logInfo(
-        `list-articles: db=${body.databaseId}, titleProp=${String(body.titlePropertyName)}`,
+        `list-articles: db=${body.databaseId}, titleProp=${String(body.titlePropertyName)}, pageSize=${String(body.pageSize)}, startCursor=${String(body.startCursor)}`,
       );
 
       const notionService = yield* NotionService;
@@ -44,20 +45,92 @@ const apiRouter = HttpRouter.empty.pipe(
         return yield* HttpServerResponse.json({ errors }, { status: 400 });
       }
 
-      const articles = yield* notionService.listArticles(
+      const result = yield* notionService.listArticles(
         body.databaseId,
         body.titlePropertyName,
         body.filter,
         body.sorts,
+        body.pageSize,
+        body.startCursor,
       );
       yield* Effect.logInfo(
-        `list-articles: success count=${articles.length}`,
+        `list-articles: success count=${result.results.length}, hasMore=${result.hasMore}, nextCursor=${String(result.nextCursor)}`,
       );
 
       return yield* HttpServerResponse.schemaJson(
         ApiSchema.ListArticlesResponseSchema,
-      )(
-        articles,
+      )(result);
+    }),
+  ),
+  // New: expose normalized database schema for clients
+  HttpRouter.get(
+    "/api/get-database-schema",
+    Effect.gen(function* () {
+      yield* Effect.logInfo("/api/get-database-schema: start");
+      const query = yield* HttpServerRequest.schemaSearchParams(
+        ApiSchema.GetDatabaseSchemaRequestSchema,
+      );
+      yield* Effect.logInfo(
+        `/api/get-database-schema: databaseId=${query.databaseId}`,
+      );
+      const notionService = yield* NotionService;
+      const schema = yield* notionService.getDatabaseSchema(query.databaseId);
+      return yield* HttpServerResponse.schemaJson(
+        ApiSchema.NormalizedDatabaseSchemaSchema,
+      )(schema);
+    }),
+  ),
+  // New: get article metadata (properties)
+  HttpRouter.get(
+    "/api/get-article-metadata",
+    Effect.gen(function* () {
+      yield* Effect.logInfo("/api/get-article-metadata: start");
+      const query = yield* HttpServerRequest.schemaSearchParams(
+        ApiSchema.GetArticleMetadataRequestSchema,
+      );
+      yield* Effect.logInfo(
+        `/api/get-article-metadata: pageId=${query.pageId}`,
+      );
+      const notionService = yield* NotionService;
+      const meta = yield* notionService.getArticleMetadata(query.pageId);
+      return yield* HttpServerResponse.schemaJson(
+        ApiSchema.GetArticleMetadataResponseSchema,
+      )(meta);
+    }),
+  ),
+  // New: router-based health check (no adapter bypass)
+  HttpRouter.get(
+    "/api/health",
+    Effect.gen(function* () {
+      const cfg = yield* AppConfig;
+      const hasApiKey = Boolean(cfg.notionApiKey && cfg.notionApiKey.length > 0);
+      let notionOk: boolean | undefined = undefined;
+      let error: string | undefined = undefined;
+      if (cfg.notionDatabaseId) {
+        const notionService = yield* NotionService;
+        const attempt = yield* Effect.either(
+          notionService.getDatabaseSchema(cfg.notionDatabaseId),
+        );
+        if (attempt._tag === "Right") notionOk = true;
+        else {
+          notionOk = false;
+          error = String(attempt.left);
+        }
+      }
+      const ok = hasApiKey && (notionOk !== false);
+      const body = {
+        ok,
+        env: cfg.env,
+        hasApiKey,
+        checkedDatabaseId: cfg.notionDatabaseId || null,
+        notionOk,
+        error: error ?? null,
+      } as const;
+      return yield* HttpServerResponse.raw(
+        new Response(JSON.stringify(body) + "\n", {
+          status: ok ? 200 : 503,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        }),
       );
     }),
   ),

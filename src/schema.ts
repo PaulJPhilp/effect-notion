@@ -137,6 +137,11 @@ export const ListArticlesRequestSchema = Schema.Struct({
   // Typed subset of Notion filters and sorts
   filter: Schema.optional(FilterSchema),
   sorts: Schema.optional(Schema.Array(SortSchema)),
+  // Pagination
+  pageSize: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1), Schema.lessThanOrEqualTo(100)),
+  ),
+  startCursor: Schema.optional(NonEmptyString),
 });
 export type ListArticlesRequest = Schema.Schema.Type<
   typeof ListArticlesRequestSchema
@@ -146,7 +151,11 @@ const ArticleIdentifierSchema = Schema.Struct({
   id: Schema.String,
   title: Schema.String,
 });
-export const ListArticlesResponseSchema = Schema.Array(ArticleIdentifierSchema);
+export const ListArticlesResponseSchema = Schema.Struct({
+  results: Schema.Array(ArticleIdentifierSchema),
+  hasMore: Schema.Boolean,
+  nextCursor: Schema.OptionFromNullOr(Schema.String),
+});
 export type ListArticlesResponse = Schema.Schema.Type<
   typeof ListArticlesResponseSchema
 >;
@@ -175,4 +184,44 @@ export const UpdateArticleContentRequestSchema = Schema.Struct({
 });
 export type UpdateArticleContentRequest = Schema.Schema.Type<
   typeof UpdateArticleContentRequestSchema
+>;
+
+// --- /api/get-database-schema ---
+export const GetDatabaseSchemaRequestSchema = Schema.Struct({
+  databaseId: NotionIdSchema,
+});
+export type GetDatabaseSchemaRequest = Schema.Schema.Type<
+  typeof GetDatabaseSchemaRequestSchema
+>;
+
+// Mirror of NormalizedDatabaseSchema from NotionSchema.ts
+const DatabasePropertySchema = Schema.Struct({
+  name: Schema.String,
+  type: Schema.String,
+  config: Schema.optional(Schema.Unknown),
+});
+export const NormalizedDatabaseSchemaSchema = Schema.Struct({
+  databaseId: Schema.String,
+  titlePropertyName: Schema.Union(Schema.String, Schema.Null),
+  properties: Schema.Array(DatabasePropertySchema),
+  lastEditedTime: Schema.String,
+  propertiesHash: Schema.String,
+});
+export type NormalizedDatabaseSchemaJson = Schema.Schema.Type<
+  typeof NormalizedDatabaseSchemaSchema
+>;
+
+// --- /api/get-article-metadata ---
+export const GetArticleMetadataRequestSchema = Schema.Struct({
+  pageId: NotionIdSchema,
+});
+export type GetArticleMetadataRequest = Schema.Schema.Type<
+  typeof GetArticleMetadataRequestSchema
+>;
+
+export const GetArticleMetadataResponseSchema = Schema.Struct({
+  properties: Schema.Unknown,
+});
+export type GetArticleMetadataResponse = Schema.Schema.Type<
+  typeof GetArticleMetadataResponseSchema
 >;

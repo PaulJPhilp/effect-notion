@@ -64,10 +64,11 @@ cp .env.example .env
 
 ## API Endpoints
 
-### List Articles
+### List Articles (paginated)
 
 - **Endpoint**: `POST /api/list-articles`
-- **Description**: Retrieves a list of items from a Notion database, with optional filtering and sorting.
+- **Description**: Retrieves a paginated list of items from a Notion database,
+  with optional filtering and sorting.
 
 **Request Body:**
 
@@ -75,13 +76,27 @@ cp .env.example .env
 {
   "databaseId": "YOUR_NOTION_DATABASE_ID",
   "titlePropertyName": "Name",
-  "filter": { 
-    "property": "Status", 
-    "select": { "equals": "Published" } 
+  "filter": {
+    "property": "Status",
+    "select": { "equals": "Published" }
   },
   "sorts": [
     { "property": "Date", "direction": "descending" }
-  ]
+  ],
+  "pageSize": 20,            // optional (1-100)
+  "startCursor": "..."       // optional
+}
+```
+
+**Response:**
+
+```json
+{
+  "results": [
+    { "id": "...", "title": "..." }
+  ],
+  "hasMore": true,
+  "nextCursor": "..." // null when no more
 }
 ```
 
@@ -96,7 +111,8 @@ curl -X POST http://localhost:3000/api/list-articles \
     "filter": {
       "property": "Status",
       "select": { "equals": "Published" }
-    }
+    },
+    "pageSize": 20
   }'
 ```
 
@@ -140,7 +156,39 @@ curl -X POST http://localhost:3000/api/update-article-content \
 }'
 ```
 
-<!-- Health check removed: no explicit /api/health route in router. -->
+### Get Database Schema
+
+- **Endpoint**: `GET /api/get-database-schema`
+- **Description**: Returns the normalized live schema for a Notion database.
+
+**Example:**
+
+```bash
+curl "http://localhost:3000/api/get-database-schema?databaseId=<YOUR_DB_ID>"
+```
+
+### Get Article Metadata (properties)
+
+- **Endpoint**: `GET /api/get-article-metadata`
+- **Description**: Returns the raw Notion page `properties` for a page.
+
+**Example:**
+
+```bash
+curl "http://localhost:3000/api/get-article-metadata?pageId=<YOUR_PAGE_ID>"
+```
+
+### Health (router-based)
+
+- **Endpoint**: `GET /api/health`
+- **Description**: Reports server health. If `NOTION_DATABASE_ID` is set, the
+  server performs a real Notion call to validate connectivity.
+
+**Example:**
+
+```bash
+curl "http://localhost:3000/api/health"
+```
 
 ## Advanced Features
 

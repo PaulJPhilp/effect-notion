@@ -98,6 +98,14 @@ export class NotionClient extends Effect.Service<NotionClient>()(
         );
 
       return {
+        retrievePage: (apiKey: string, pageId: string) =>
+          performRequest(
+            HttpClientRequest.get(
+              `https://api.notion.com/v1/pages/${pageId}`,
+            ).pipe(withNotionHeaders(apiKey)),
+            NotionSchema.PageSchema,
+          ),
+
         retrieveDatabase: (apiKey: string, databaseId: string) =>
           performRequest(
             HttpClientRequest.get(
