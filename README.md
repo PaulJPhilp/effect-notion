@@ -24,15 +24,20 @@ Your frontend makes requests to this server, and this server, which securely sto
 - **Codegen for Type Safety**: Generate TypeScript types from your live Notion database to ensure end-to-end type safety.
 - **Built with Effect**: Leverages the Effect library for a highly performant, concurrent, and error-resilient server.
 - **Ready to Deploy**: Includes configurations for easy deployment to services like Vercel.
+- **Consistent Error Model**: All errors return normalized JSON with a stable shape and a `requestId` for tracing.
 
 ## Runtime and adapters
 
-- `src/router.ts`: Pure Effect-based `HttpApp` with all routes. This is the
-  single source of truth (no adapter bypasses).
-- `api/index.ts`: Vercel Node v3 adapter. Materializes the Effect app into a
+- `src/router.ts`: Effect `HttpRouter` defining all routes. This is the
+  single source of truth (no adapter bypasses). Converted to `HttpApp` where needed.
+- `api/index.ts`: Vercel Node v3 adapter. Converts the router via `HttpRouter.toHttpApp(...)`, then materializes it into a
   Fetch-style handler and bridges to Node's `IncomingMessage/ServerResponse`.
 - `src/main.ts`: Local Bun server entry for development using Effect's Node
   HTTP server integration.
+
+Logging & CORS:
+- Both entrypoints enable structured request/response logging using `HttpMiddleware.logger`.
+- CORS is enabled with defaults; configure via `CORS_ORIGIN`.
 
 ## Configuration & Security
 
@@ -63,6 +68,11 @@ cp .env.example .env
 3.  **The server will be available at `http://localhost:3000`.**
 
 ## API Endpoints
+### Ping (liveness)
+
+- **Endpoint**: `GET /api/ping`
+- **Description**: Simple liveness probe. Returns `ok`.
+
 
 ### List Articles (paginated)
 
@@ -177,6 +187,23 @@ curl "http://localhost:3000/api/get-database-schema?databaseId=<YOUR_DB_ID>"
 ```bash
 curl "http://localhost:3000/api/get-article-metadata?pageId=<YOUR_PAGE_ID>"
 ```
+
+### Error Responses (normalized)
+
+All error responses follow a consistent JSON structure and include a request ID:
+
+```json
+{
+  "error": "Bad Request",
+  "code": "BadRequest",
+  "requestId": "abcd1234",
+  "detail": "Optional human-friendly text",
+  "errors": ["Optional list of validation errors"]
+}
+```
+
+- Codes include: `BadRequest`, `InvalidApiKey`, `NotFound`, `InternalServerError`.
+- The `x-request-id` header mirrors `requestId` for log correlation.
 
 ### Health (router-based)
 

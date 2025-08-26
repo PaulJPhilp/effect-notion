@@ -1,11 +1,13 @@
-// api/index.ts
-import { Logger, Layer } from "effect";
-import * as HttpApp from "@effect/platform/HttpApp";
+import { toWebHandlerLayerWith } from "@effect/platform/HttpApp";
 import * as HttpMiddleware from "@effect/platform/HttpMiddleware";
-import { app } from "../src/router.js";
+import * as HttpRouter from "@effect/platform/HttpRouter";
+import * as HttpServer from "@effect/platform/HttpServer";
+// api/index.ts
+import { Layer, Logger } from "effect";
 import { NotionClient } from "../src/NotionClient.js";
 import { NotionService } from "../src/NotionService.js";
 import { AppConfigProviderLive } from "../src/config.js";
+import { app } from "../src/router.js";
 
 // CORS for serverless entrypoint (Bun/Edge style fetch handler)
 const corsMiddleware = HttpMiddleware.cors({
@@ -28,38 +30,62 @@ const AppLayers = Layer.mergeAll(
   // Provide external service layers so router handlers can access them
   NotionClient.Default,
   NotionService.Default,
+  HttpServer.layerContext
 );
 
-// Materialize the Effect HttpApp as a Web handler
-const { handler: webHandler } = HttpApp.toWebHandlerLayer(app, AppLayers);
+// Materialize the Effect HttpApp as a Web handler, applying CORS middleware and logging
+const { handler: webHandler } = toWebHandlerLayerWith(AppLayers, {
+  toHandler: () => HttpRouter.toHttpApp(app),
+  middleware: (self) => HttpMiddleware.logger(corsMiddleware(self)),
+});
 
 // Vercel Node v3 Web API entrypoint: (Request) => Promise<Response>
 export default async function handler(request: Request): Promise<Response> {
   try {
+    const url = new URL(request.url);
+    // Fast path: basic liveness without invoking the full Effect app
+    if (request.method === "GET" && url.pathname === "/api/ping") {
+      return new Response("ok\n", {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "content-type": "text/plain; charset=utf-8",
+        },
+      });
+    }
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
     const response = await webHandler(request);
-    // Ensure CORS headers are present
+    // Ensure CORS headers are present and avoid streaming lock issues
     const resHeaders = new Headers(response.headers);
     for (const [k, v] of Object.entries(corsHeaders)) {
       if (!resHeaders.has(k)) resHeaders.set(k, v);
     }
-    return new Response(response.body, {
+    const bodyBuffer = await response.arrayBuffer();
+    return new Response(bodyBuffer, {
       status: response.status,
       headers: resHeaders,
     });
   } catch (err) {
     console.error("Web handler error:", err);
+    // Produce normalized error JSON with request-id
+    const requestId = Math.random().toString(36).slice(2, 10);
     return new Response(
-      JSON.stringify({ error: "Internal Server Error", detail: String(err) }),
+      JSON.stringify({
+        error: "Internal Server Error",
+        code: "InternalServerError",
+        requestId,
+        detail: String(err),
+      }),
       {
         status: 500,
         headers: {
           ...corsHeaders,
           "content-type": "application/json; charset=utf-8",
+          "x-request-id": requestId,
         },
-      },
+      }
     );
   }
 }

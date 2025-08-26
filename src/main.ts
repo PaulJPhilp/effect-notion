@@ -1,12 +1,16 @@
-// src/main.ts
-import { Effect, Layer, Logger } from "effect";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
-import { createServer } from "node:http";
 import * as HttpMiddleware from "@effect/platform/HttpMiddleware";
 import * as HttpServer from "@effect/platform/HttpServer";
-import { app } from "./router.js";
+import { createServer } from "node:http";
+// src/main.ts
+import { Effect, Layer, Logger } from "effect";
 import { NotionService } from "./NotionService.js";
-import { AppConfig, AppConfigProviderLive } from "./config.js";
+import {
+  AppConfig,
+  AppConfigProviderLive,
+  ValidatedAppConfig,
+} from "./config.js";
+import { app } from "./router.js";
 
 // The main application logic, dependent on AppConfig
 const Main = Effect.gen(function* () {
@@ -18,10 +22,20 @@ const Main = Effect.gen(function* () {
     allowedHeaders: ["Content-Type", "Authorization"],
   });
 
-  // `app` is Effect<HttpApp>, evaluate it first
-  const httpApp = yield* app;
-  // Apply CORS as middleware using the curried serve overload
-  const ServerLive = HttpServer.serve(corsMiddleware)(httpApp);
+  // Perform non-fatal config validation (e.g., prod requires NOTION_API_KEY)
+  const validation = yield* Effect.either(ValidatedAppConfig);
+  if (validation._tag === "Left") {
+    yield* Effect.logWarning(
+      `Configuration validation failed; continuing to serve. Health will report 503. detail=${String(
+        validation.left
+      )}`
+    );
+  }
+
+  // Apply request/response logging and CORS middleware
+  const ServerLive = HttpServer.serve(
+    HttpMiddleware.logger(corsMiddleware(app))
+  );
 
   // Create the server layer with the configured port
   const HttpLive = NodeHttpServer.layer(() => createServer(), {
@@ -37,8 +51,8 @@ const Main = Effect.gen(function* () {
     Effect.provide(PlatformLive),
     Effect.scoped,
     Effect.tap(() =>
-      Effect.logInfo(`Server running on http://localhost:${config.port}`),
-    ),
+      Effect.logInfo(`Server running on http://localhost:${config.port}`)
+    )
   );
   // Return the program so Main has type Effect<void, E, R>
   return yield* main.pipe(Effect.asVoid);
@@ -47,12 +61,12 @@ const Main = Effect.gen(function* () {
 const AppLayers = Layer.mergeAll(
   Logger.json,
   AppConfigProviderLive,
-  NotionService.Default,
+  NotionService.Default
 );
 
 const Program = Main.pipe(
   Effect.provide(AppLayers),
-  Effect.asVoid,
+  Effect.asVoid
 ) as Effect.Effect<void, never, never>;
 
 NodeRuntime.runMain(Program);

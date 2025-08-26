@@ -21,26 +21,26 @@ describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_PAGE_ID || !NOTION_DATABA
   "NotionService (More Integration)",
   () => {
     it(
-      "listArticles should return items from the database",
-      async () =>
-        await Effect.runPromise(
-          Effect.gen(function* () {
-            const svc = yield* NotionService;
-            const items = yield* svc.listArticles(
-              NOTION_DATABASE_ID!,
-              "Name",
-            );
-
-            expect(Array.isArray(items)).toBe(true);
-            // Basic shape assertions
-            for (const it of items) {
-              expect(typeof it.id).toBe("string");
-              expect(typeof it.title).toBe("string");
-            }
-          }).pipe(Effect.provide(TestLayer)),
-        ),
-      30000,
-    );
+        "listArticles should return items from the database",
+        async () =>
+          await Effect.runPromise(
+            Effect.gen(function* () {
+              const svc = yield* NotionService;
+              const items = yield* svc.listArticles(
+                NOTION_DATABASE_ID!,
+                "Name",
+              );
+  
+              expect(Array.isArray(items.results)).toBe(true);
+              // Basic shape assertions
+              for (const it of items.results) {
+                expect(typeof it.id).toBe("string");
+                expect(typeof it.title).toBe("string");
+              }
+            }).pipe(Effect.provide(TestLayer)),
+          ),
+        30000,
+      );
 
     it(
       "getArticleContent returns a string for a valid page",

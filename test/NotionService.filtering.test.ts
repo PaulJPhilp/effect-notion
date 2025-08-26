@@ -30,11 +30,12 @@ describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(
                 on_or_after: "1970-01-01T00:00:00.000Z",
               },
             } as const;
-            return yield* svc.listArticles(
+            const articles = yield* svc.listArticles(
               NOTION_DATABASE_ID!,
               undefined,
               filter,
             );
+            return articles.results;
           }).pipe(Effect.provide(TestLayer)),
         );
 
@@ -52,12 +53,13 @@ describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(
             const sorts = [
               { timestamp: "last_edited_time", direction: "descending" as const },
             ];
-            return yield* svc.listArticles(
+            const articles = yield* svc.listArticles(
               NOTION_DATABASE_ID!,
               undefined,
               undefined,
               sorts,
             );
+            return articles.results;
           }).pipe(Effect.provide(TestLayer)),
         );
 

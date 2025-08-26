@@ -4,11 +4,9 @@ import { Schema } from "effect";
 // --- Common ---
 export const NonEmptyString = Schema.String.pipe(Schema.minLength(1));
 
-// Notion IDs can be hyphenated UUIDs or 32-char hex without hyphens
-const Hex32Id = Schema.String.pipe(
-  Schema.pattern(/^[0-9a-fA-F]{32}$/),
-);
-export const NotionIdSchema = Schema.Union(Schema.UUID, Hex32Id);
+// Be permissive for IDs at the router boundary so upstream (Notion API)
+// determines invalid IDs and we can surface proper 404s via error mapping.
+export const NotionIdSchema = NonEmptyString;
 
 
 
@@ -130,7 +128,6 @@ export const FilterSchema = Schema.Union(
 
 // --- /api/list-articles ---
 export const ListArticlesRequestSchema = Schema.Struct({
-  
   databaseId: NotionIdSchema,
   // Add a field to specify the title property, defaulting to "Name"
   titlePropertyName: Schema.optional(NonEmptyString),
@@ -162,7 +159,6 @@ export type ListArticlesResponse = Schema.Schema.Type<
 
 // --- /api/get-article-content ---
 export const GetArticleContentRequestSchema = Schema.Struct({
-  
   pageId: NotionIdSchema,
 });
 export type GetArticleContentRequest = Schema.Schema.Type<
@@ -178,7 +174,6 @@ export type GetArticleContentResponse = Schema.Schema.Type<
 
 // --- /api/update-article-content ---
 export const UpdateArticleContentRequestSchema = Schema.Struct({
-  
   pageId: NotionIdSchema,
   content: NonEmptyString,
 });
@@ -202,7 +197,9 @@ const DatabasePropertySchema = Schema.Struct({
 });
 export const NormalizedDatabaseSchemaSchema = Schema.Struct({
   databaseId: Schema.String,
+  // Backward/forward compatibility: accept either/both names
   titlePropertyName: Schema.Union(Schema.String, Schema.Null),
+  titleProperty: Schema.Union(Schema.String, Schema.Null),
   properties: Schema.Array(DatabasePropertySchema),
   lastEditedTime: Schema.String,
   propertiesHash: Schema.String,
@@ -220,6 +217,7 @@ export type GetArticleMetadataRequest = Schema.Schema.Type<
 >;
 
 export const GetArticleMetadataResponseSchema = Schema.Struct({
+  id: Schema.String,
   properties: Schema.Unknown,
 });
 export type GetArticleMetadataResponse = Schema.Schema.Type<

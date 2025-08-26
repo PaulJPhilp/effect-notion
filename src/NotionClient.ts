@@ -1,16 +1,17 @@
-// src/NotionClient.ts
-import { Data, Effect, Layer, Schedule } from "effect";
-import * as S from "effect/Schema";
+import * as FetchHttpClient from "@effect/platform/FetchHttpClient";
 import * as HttpClient from "@effect/platform/HttpClient";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
 import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
-import * as FetchHttpClient from "@effect/platform/FetchHttpClient";
+// src/NotionClient.ts
+import { Data, Effect } from "effect";
+import type * as S from "effect/Schema";
 import * as NotionSchema from "./NotionSchema.js";
 
 // --- Errors (remain the same) ---
 export type NotionError =
   | InvalidApiKeyError
   | NotFoundError
+  | BadRequestError
   | InternalServerError;
 
 export class InvalidApiKeyError extends Data.TaggedError("InvalidApiKeyError")<{
@@ -19,7 +20,12 @@ export class InvalidApiKeyError extends Data.TaggedError("InvalidApiKeyError")<{
 export class NotFoundError extends Data.TaggedError("NotFoundError")<{
   readonly cause: unknown;
 }> {}
-export class InternalServerError extends Data.TaggedError("InternalServerError")<{
+export class BadRequestError extends Data.TaggedError("BadRequestError")<{
+  readonly cause: unknown;
+}> {}
+export class InternalServerError extends Data.TaggedError(
+  "InternalServerError"
+)<{
   readonly cause: unknown;
 }> {}
 
@@ -35,8 +41,6 @@ export class NotionClient extends Effect.Service<NotionClient>()(
         HttpClient.retryTransient({ times: 5 })
       );
 
-      
-
       const withNotionHeaders = (apiKey: string) =>
         HttpClientRequest.setHeaders({
           Authorization: `Bearer ${apiKey}`,
@@ -46,7 +50,7 @@ export class NotionClient extends Effect.Service<NotionClient>()(
 
       const performRequest = <A, I>(
         request: HttpClientRequest.HttpClientRequest,
-        schema: S.Schema<A, I, never>,
+        schema: S.Schema<A, I, never>
       ): Effect.Effect<A, NotionError> =>
         client.execute(request).pipe(
           // Map transport-level errors (no response) to InternalServerError
@@ -54,64 +58,89 @@ export class NotionClient extends Effect.Service<NotionClient>()(
           Effect.flatMap((response) => {
             if (response.status === 401) {
               return Effect.fail(
-                new InvalidApiKeyError({ cause: undefined }),
+                new InvalidApiKeyError({ cause: undefined })
               ) as Effect.Effect<never, NotionError>;
             }
             if (response.status === 404) {
               return Effect.fail(
-                new NotFoundError({ cause: undefined }),
+                new NotFoundError({ cause: undefined })
+              ) as Effect.Effect<never, NotionError>;
+            }
+            if (response.status === 400 || response.status === 422) {
+              return response.text.pipe(
+                Effect.catchAll(() => Effect.succeed("")),
+                Effect.tap((body) =>
+                  Effect.logWarning(
+                    `Notion BadRequest ${response.status}: ${body}`
+                  )
+                ),
+                Effect.flatMap((body) =>
+                  Effect.fail(new BadRequestError({ cause: body }))
+                )
               ) as Effect.Effect<never, NotionError>;
             }
             if (response.status >= 400) {
               return Effect.fail(
-                new InternalServerError({ cause: undefined }),
+                new InternalServerError({ cause: undefined })
               ) as Effect.Effect<never, NotionError>;
             }
 
             return HttpClientResponse.schemaBodyJson(schema)(response).pipe(
-              Effect.mapError((cause) => new InternalServerError({ cause })),
+              Effect.mapError((cause) => new InternalServerError({ cause }))
             );
-          }),
+          })
         );
 
       const performRequestUnit = (
-        request: HttpClientRequest.HttpClientRequest,
+        request: HttpClientRequest.HttpClientRequest
       ): Effect.Effect<void, NotionError> =>
         client.execute(request).pipe(
           Effect.mapError((cause) => new InternalServerError({ cause })),
           Effect.flatMap((response) => {
             if (response.status === 401)
               return Effect.fail(
-                new InvalidApiKeyError({ cause: undefined }),
+                new InvalidApiKeyError({ cause: undefined })
               ) as Effect.Effect<never, NotionError>;
             if (response.status === 404)
               return Effect.fail(
-                new NotFoundError({ cause: undefined }),
+                new NotFoundError({ cause: undefined })
+              ) as Effect.Effect<never, NotionError>;
+            if (response.status === 400 || response.status === 422)
+              return response.text.pipe(
+                Effect.catchAll(() => Effect.succeed("")),
+                Effect.tap((body) =>
+                  Effect.logWarning(
+                    `Notion BadRequest ${response.status}: ${body}`
+                  )
+                ),
+                Effect.flatMap((body) =>
+                  Effect.fail(new BadRequestError({ cause: body }))
+                )
               ) as Effect.Effect<never, NotionError>;
             if (response.status >= 400)
               return Effect.fail(
-                new InternalServerError({ cause: undefined }),
+                new InternalServerError({ cause: undefined })
               ) as Effect.Effect<never, NotionError>;
 
             return Effect.succeed(void 0);
-          }),
+          })
         );
 
       return {
         retrievePage: (apiKey: string, pageId: string) =>
           performRequest(
             HttpClientRequest.get(
-              `https://api.notion.com/v1/pages/${pageId}`,
+              `https://api.notion.com/v1/pages/${pageId}`
             ).pipe(withNotionHeaders(apiKey)),
-            NotionSchema.PageSchema,
+            NotionSchema.PageSchema
           ),
 
         retrieveDatabase: (apiKey: string, databaseId: string) =>
           performRequest(
             HttpClientRequest.get(
-              `https://api.notion.com/v1/databases/${databaseId}`,
+              `https://api.notion.com/v1/databases/${databaseId}`
             ).pipe(withNotionHeaders(apiKey)),
-            NotionSchema.DatabaseSchema,
+            NotionSchema.DatabaseSchema
           ),
 
         queryDatabase: (
@@ -122,55 +151,61 @@ export class NotionClient extends Effect.Service<NotionClient>()(
             sorts?: unknown;
             start_cursor?: string;
             page_size?: number;
-          },
+          }
         ) =>
           performRequest(
             HttpClientRequest.post(
-              `https://api.notion.com/v1/databases/${databaseId}/query`,
+              `https://api.notion.com/v1/databases/${databaseId}/query`
             ).pipe(
-              body && (body.filter || body.sorts || body.start_cursor || body.page_size)
+              body &&
+                (body.filter ||
+                  body.sorts ||
+                  body.start_cursor ||
+                  body.page_size)
                 ? HttpClientRequest.bodyUnsafeJson(body)
                 : (req) => req,
-              withNotionHeaders(apiKey),
+              withNotionHeaders(apiKey)
             ),
-            NotionSchema.PageListResponseSchema,
+            NotionSchema.PageListResponseSchema
           ),
 
         retrieveBlockChildren: (
           apiKey: string,
           pageId: string,
-          cursor?: string,
+          cursor?: string
         ) =>
           performRequest(
             HttpClientRequest.get(
               cursor
-                ? `https://api.notion.com/v1/blocks/${pageId}/children?start_cursor=${encodeURIComponent(cursor)}`
-                : `https://api.notion.com/v1/blocks/${pageId}/children`,
+                ? `https://api.notion.com/v1/blocks/${pageId}/children?start_cursor=${encodeURIComponent(
+                    cursor
+                  )}`
+                : `https://api.notion.com/v1/blocks/${pageId}/children`
             ).pipe(withNotionHeaders(apiKey)),
-            NotionSchema.BlockListResponseSchema,
+            NotionSchema.BlockListResponseSchema
           ),
 
         deleteBlock: (apiKey: string, blockId: string) =>
           performRequestUnit(
             HttpClientRequest.del(
-              `https://api.notion.com/v1/blocks/${blockId}`,
-            ).pipe(withNotionHeaders(apiKey)),
+              `https://api.notion.com/v1/blocks/${blockId}`
+            ).pipe(withNotionHeaders(apiKey))
           ),
 
         appendBlockChildren: (
           apiKey: string,
           pageId: string,
-          blocks: ReadonlyArray<NotionSchema.NotionBlockInput>,
+          blocks: ReadonlyArray<NotionSchema.NotionBlockInput>
         ) =>
           HttpClientRequest.patch(
-            `https://api.notion.com/v1/blocks/${pageId}/children`,
+            `https://api.notion.com/v1/blocks/${pageId}/children`
           ).pipe(
             // Use unsafe body to keep the builder pure
             HttpClientRequest.bodyUnsafeJson({ children: blocks }),
             withNotionHeaders(apiKey),
-            (req) => performRequest(req, NotionSchema.BlockListResponseSchema),
+            (req) => performRequest(req, NotionSchema.BlockListResponseSchema)
           ),
       };
     }),
-  },
+  }
 ) {}
