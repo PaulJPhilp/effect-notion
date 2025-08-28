@@ -1,8 +1,13 @@
 # effect-notion
 
-`effect-notion` is a lightweight, production-ready server that acts as a secure proxy for the Notion API. Built with the powerful [Effect](https://effect.website/) library, it provides a robust, type-safe, and efficient way to fetch data from Notion databases and pages.
+`effect-notion` is a lightweight, production-ready server that acts as a
+secure proxy for the Notion API. Built with the powerful
+[Effect](https://effect.website/) library, it provides a robust, type-safe,
+and efficient way to fetch data from Notion databases and pages.
 
-It comes with a suite of features designed for serious application development, including logical field overrides, dynamic filtering, and schema-driven type generation.
+It includes features for real apps: logical field overrides, dynamic
+filtering, schema-aware validation, consistent errors, and optional
+type/code generation.
 
 ## Who is this for?
 
@@ -10,11 +15,13 @@ This server is ideal for developers building front-end applications (e.g., blogs
 
 ## Architecture
 
-The server acts as a secure intermediary between your application and the Notion API.
+The server acts as a secure intermediary between your application and the
+Notion API.
 
 `[Your Frontend App] <--> [effect-notion server] <--> [Notion API]`
 
-Your frontend makes requests to this server, and this server, which securely stores your `NOTION_API_KEY`, makes the authenticated requests to Notion.
+Your frontend talks to this server; the server (holding your
+`NOTION_API_KEY`) talks to Notion.
 
 ## Features
 
@@ -28,46 +35,83 @@ Your frontend makes requests to this server, and this server, which securely sto
 
 ## Runtime and adapters
 
-- `src/router.ts`: Effect `HttpRouter` defining all routes. This is the
-  single source of truth (no adapter bypasses). Converted to `HttpApp` where needed.
-- `api/index.ts`: Vercel Node v3 adapter. Converts the router via `HttpRouter.toHttpApp(...)`, then materializes it into a
-  Fetch-style handler and bridges to Node's `IncomingMessage/ServerResponse`.
-- `src/main.ts`: Local Bun server entry for development using Effect's Node
-  HTTP server integration.
+- `src/router.ts`: Effect `HttpRouter` defining the API surface. It is the
+  source of truth for business logic and error handling.
+- `api/index.ts`: Vercel Node v3 adapter. It converts the router to a
+  Fetch-style handler and applies logging + CORS. Note: this adapter currently
+  implements a minimal fast-path for `GET /api/ping` and handles `OPTIONS`
+  preflight before invoking the router.
+- `src/main.ts`: Local Bun/Node server entry for development using the
+  Effect Node HTTP server integration.
 
 Logging & CORS:
-- Both entrypoints enable structured request/response logging using `HttpMiddleware.logger`.
-- CORS is enabled with defaults; configure via `CORS_ORIGIN`.
+- Both entry points enable structured logging via `HttpMiddleware.logger`.
+- CORS is enabled; configure via `CORS_ORIGIN`.
 
 ## Configuration & Security
 
-This server is designed to be the **sole keeper** of your `NOTION_API_KEY`. The key must be configured on the server as an environment variable and should never be exposed to or sent from your client-side application.
+This server is the **sole keeper** of your `NOTION_API_KEY`. Never expose or
+send this key from the client.
 
-Create a `.env` file in the root of the project by copying the `.env.example` file.
+Create a `.env` file at the project root by copying `.env.example`:
 
 ```bash
 cp .env.example .env
 ```
 
-### Environment Variables
+### Env file precedence
 
-- `NOTION_API_KEY`: **Required. Your Notion API integration key.** This is a secret and should be set securely in your deployment environment.
-- `NOTION_DATABASE_ID`: **Optional.** A default database ID to use for queries if one is not provided in the API request.
-- `NOTION_PAGE_ID`: **Optional.** A default page ID to use for queries if one is not provided in the API request.
+Loaded at startup in this order (later overrides earlier):
+
+1) `.env`
+2) `.env.local`
+3) `.env.$NODE_ENV`
+4) `.env.$NODE_ENV.local`
+
+### Environment variables
+
+- `NODE_ENV` (development | test | production). Default: development.
+- `PORT`: Port for local server. Default: 3000.
+- `CORS_ORIGIN`: CORS allowed origin(s). Default: `*`.
+- `LOG_LEVEL`: Effect logger level. Default: `Info`.
+- `NOTION_API_KEY`: Your Notion integration key.
+- `NOTION_DATABASE_ID`: Optional default database id.
+- `NOTION_PAGE_ID`: Optional default page id.
 
 ## Quick Start
 
-1.  **Install dependencies:**
-    ```bash
-    bun install
-    ```
-2.  **Run the development server:**
-    ```bash
-    bun run dev
-    ```
-3.  **The server will be available at `http://localhost:3000`.**
+1. **Install dependencies**
+   ```bash
+   bun install
+   ```
+2. **Run the dev server (Bun)**
+   ```bash
+   bun run dev
+   ```
+3. Server runs at `http://localhost:3000` (or your `PORT`).
+
+Useful scripts from `package.json`:
+
+- `bun start` — run `src/main.ts`
+- `bun run dev` — watch mode
+- `bun test` — run tests (Vitest via Bun)
+- `bun run build` — type-check via `tsc`
+- `bun run codegen:notion` — run schema codegen (see below)
+
+Diagnostics helper:
+
+```bash
+bun scripts/diagnose.ts /api/health
+```
 
 ## API Endpoints
+
+Note on HTTP methods:
+
+- Use GET for simple, idempotent retrieval by ID (e.g., `pageId` in query).
+- Use POST when a structured JSON body is required (e.g., filters/sorts for
+  listing; content payload for update).
+
 ### Ping (liveness)
 
 - **Endpoint**: `GET /api/ping`
@@ -202,7 +246,8 @@ All error responses follow a consistent JSON structure and include a request ID:
 }
 ```
 
-- Codes include: `BadRequest`, `InvalidApiKey`, `NotFound`, `InternalServerError`.
+- Codes include: `BadRequest`, `InvalidApiKey`, `NotFound`,
+  `InternalServerError`.
 - The `x-request-id` header mirrors `requestId` for log correlation.
 
 ### Health (router-based)
@@ -242,41 +287,72 @@ This request fetches entries where "Status" is "In Progress" AND "Priority" is "
 
 ### Codegen
 
-For maximum type safety and to catch schema-related errors at compile-time instead of runtime, you can generate TypeScript types directly from your live Notion database.
+Optional codegen can emit a static module describing your current Notion
+database schema to aid compile-time checks.
 
-**How to use it:**
+From `scripts/generate-notion-schema.ts`:
 
-1.  **Ensure your `.env` file has `NOTION_API_KEY` and `NOTION_DATABASE_ID` set.**
-2.  **Run the codegen script:**
-    ```bash
-    bun run codegen:notion
-    ```
-3.  **The script will create `src/NotionSchema.ts` with your database's schema.**
+```bash
+# Uses env vars if flags are omitted
+bun scripts/generate-notion-schema.ts \
+  --databaseId <id> \
+  [--apiKey <key>] \
+  [--out src/generated/notion-schema.ts] \
+  [--emitEffectSchema]
+```
+
+Defaults:
+
+- `apiKey`: `NOTION_API_KEY`
+- `databaseId`: `NOTION_DATABASE_ID`
+- `out`: `src/generated/notion-schema.ts`
+
+Outputs:
+
+- `src/generated/notion-schema.ts` (types and data)
+- If `--emitEffectSchema` is provided, also emits
+  `src/generated/notion-schema.effect.ts`.
 
 ## Testing
 
-The project includes a suite of integration tests that run against a live Notion database.
+Tests include live Notion integration. Ensure env vars are set (`.env` or
+system).
 
-**To run the tests:**
-
-1.  **Make sure your `.env` file is configured with your Notion credentials.**
-2.  **Run the test command:**
-    ```bash
-    bun test
-    ```
+```bash
+bun test
+```
 
 ## Deployment
 
-The server is configured for easy deployment on Vercel. Simply connect your repository to a new Vercel project and configure the environment variables as described in the "Configuration & Security" section.
+Vercel configuration (`vercel.json`) targets Node v3 runtime for the
+serverless function and routes all paths to `api/index.ts`.
+
+```json
+{
+  "version": 2,
+  "functions": {
+    "api/index.ts": { "runtime": "@vercel/node@3.2.20" }
+  },
+  "routes": [
+    { "src": "/api/(.*)", "dest": "api/index.ts" },
+    { "src": "/(.*)", "dest": "api/index.ts" }
+  ]
+}
+```
+
+Steps:
+
+1) Push to a Git repo and import into Vercel.
+2) Set env vars from the "Environment variables" section.
+3) Deploy.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to open an issue or submit a pull request.
+Contributions are welcome! Please open an issue or PR.
 
-Before submitting a pull request, please ensure the project builds and tests
-pass:
+Before submitting a PR, ensure build and tests pass:
 
 ```bash
-bun run build    # type-check
-bun test         # run tests
+bun run build  # type-check
+bun test       # run tests
 ```

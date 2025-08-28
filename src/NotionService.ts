@@ -22,23 +22,31 @@ import {
 const getText = (richText: ReadonlyArray<{ plain_text: string }>): string =>
   richText.map((t) => t.plain_text).join("");
 
-const notionBlocksToMarkdown = (blocks: ReadonlyArray<Block>): string => {
-  const markdownLines = blocks.map((block) => {
-    switch (block.type) {
-      case "paragraph":
+export const notionBlocksToMarkdown = (
+  blocks: ReadonlyArray<Block>,
+): string => {
+  const markdownLines = blocks
+    .map((block) => {
+      if ("paragraph" in block) {
         return getText(block.paragraph.rich_text);
-      case "heading_2":
+      }
+      if ("heading_2" in block) {
         return `## ${getText(block.heading_2.rich_text)}`;
-      case "bulleted_list_item":
+      }
+      if ("bulleted_list_item" in block) {
         return `* ${getText(block.bulleted_list_item.rich_text)}`;
-      case "code":
+      }
+      if ("code" in block) {
         return [
           `\`\`\`${block.code.language || ""}`,
           getText(block.code.rich_text),
           "```",
         ].join("\n");
-    }
-  });
+      }
+      // Unknown or unsupported block type: skip
+      return undefined;
+    })
+    .filter((line): line is string => typeof line === "string" && line.length > 0);
   return markdownLines.join("\n\n");
 };
 

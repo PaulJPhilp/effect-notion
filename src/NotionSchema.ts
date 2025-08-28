@@ -49,12 +49,23 @@ const CodeBlockSchema = S.Struct({
   }),
 });
 
+// Permissive catch-all for any Notion block type we don't explicitly model.
+// This allows us to decode lists even when new/unknown block types appear.
+const UnknownBlockSchema = S.Struct({
+  id: S.String,
+  // Accept any block type string
+  type: S.String,
+  // Allow any additional payload without validation
+}).pipe(S.attachPropertySignature("unknown", true as const));
+
 // A union of all block types our service can understand and process
 export const BlockSchema = S.Union(
   ParagraphBlockSchema,
   HeadingBlockSchema,
   BulletedListItemSchema,
   CodeBlockSchema,
+  // Keep Unknown last to prioritize specific literals during decoding
+  UnknownBlockSchema,
 );
 export type Block = S.Schema.Type<typeof BlockSchema>;
 

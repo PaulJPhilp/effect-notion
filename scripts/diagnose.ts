@@ -1,9 +1,7 @@
-import { NodeContext } from "@effect/platform-node";
+// no platform-specific layers needed here
 import * as HttpApp from "@effect/platform/HttpApp";
 import * as HttpRouter from "@effect/platform/HttpRouter";
-import * as HttpServer from "@effect/platform/HttpServer";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
-import * as HttpPlatform from "@effect/platform/HttpPlatform";
 import * as dotenv from "dotenv";
 import { Effect, Layer, Logger } from "effect";
 import { NotionClient } from "../src/NotionClient.js";
@@ -16,21 +14,15 @@ dotenv.config();
 const FullLayer = Layer.mergeAll(
   Logger.json,
   AppConfigProviderLive,
-  NodeContext.layer,
   NotionClient.Default,
   NotionService.Default,
-  HttpServer.layerContext,
-  HttpPlatform.layer
 );
 
 const MinimalLayer = Layer.mergeAll(
   Logger.json,
   AppConfigProviderLive,
-  NodeContext.layer,
   NotionClient.Default,
   NotionService.Default,
-  HttpServer.layerContext,
-  HttpPlatform.layer
 );
 
 // Pre-response logging handler (logs before platform converts response)
@@ -51,11 +43,11 @@ const preLog: HttpApp.PreResponseHandler = (req, res) =>
   });
 
 const { handler: fullHandler } = HttpApp.toWebHandlerLayer(
-  app as unknown as HttpApp.Default<never, never>,
+  app,
   FullLayer,
 );
 const { handler: minimalHandler } = HttpApp.toWebHandlerLayer(
-  app as unknown as HttpApp.Default<never, never>,
+  app,
   MinimalLayer,
 );
 

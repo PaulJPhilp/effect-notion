@@ -80,8 +80,16 @@ export class NotionClient extends Effect.Service<NotionClient>()(
               ) as Effect.Effect<never, NotionError>;
             }
             if (response.status >= 400) {
-              return Effect.fail(
-                new InternalServerError({ cause: undefined })
+              return response.text.pipe(
+                Effect.catchAll(() => Effect.succeed("")),
+                Effect.tap((body) =>
+                  Effect.logWarning(
+                    `Notion Error ${response.status}: ${body}`
+                  )
+                ),
+                Effect.flatMap((body) =>
+                  Effect.fail(new InternalServerError({ cause: body }))
+                )
               ) as Effect.Effect<never, NotionError>;
             }
 
@@ -118,8 +126,16 @@ export class NotionClient extends Effect.Service<NotionClient>()(
                 )
               ) as Effect.Effect<never, NotionError>;
             if (response.status >= 400)
-              return Effect.fail(
-                new InternalServerError({ cause: undefined })
+              return response.text.pipe(
+                Effect.catchAll(() => Effect.succeed("")),
+                Effect.tap((body) =>
+                  Effect.logWarning(
+                    `Notion Error ${response.status}: ${body}`
+                  )
+                ),
+                Effect.flatMap((body) =>
+                  Effect.fail(new InternalServerError({ cause: body }))
+                )
               ) as Effect.Effect<never, NotionError>;
 
             return Effect.succeed(void 0);
@@ -209,3 +225,18 @@ export class NotionClient extends Effect.Service<NotionClient>()(
     }),
   }
 ) {}
+
+// Test-only helper to classify status codes and include body as the cause.
+// This mirrors the logic inside performRequest/performRequestUnit without
+// changing runtime behavior. Intended for unit tests.
+export const __test__mapStatusToError = (
+  status: number,
+  body: string,
+): NotionError | undefined => {
+  if (status === 401) return new InvalidApiKeyError({ cause: undefined });
+  if (status === 404) return new NotFoundError({ cause: undefined });
+  if (status === 400 || status === 422)
+    return new BadRequestError({ cause: body });
+  if (status >= 400) return new InternalServerError({ cause: body });
+  return undefined;
+};
