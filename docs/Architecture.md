@@ -54,3 +54,30 @@ Architecture
   - Registry constructed at startup from envs.
 - Security
   - NOTION_API_KEY only on server. CORS via CORS_ORIGIN. No client secrets.
+
+Modular Services Structure
+- Each service under `src/services/` lives in its own folder with a
+  consistent layout:
+  - `api.ts` — public service interface and Effect tag.
+  - `types.ts` — service-specific types (DTOs, params, results).
+  - `errors.ts` — typed errors (`Data.TaggedError`) if applicable.
+  - `helpers.ts` — pure helpers, data transforms, logging helpers.
+  - `service.ts` — concrete `Effect.Service` implementation and `.Default`
+    layer including dependencies.
+  - `__tests__/` — colocated tests for the service.
+
+- Backward compatibility is preserved via re-exports:
+  - `src/ServiceName.ts` re-exports from `src/services/ServiceName/service.ts`.
+  - `src/services/ServiceName.ts` (legacy path) also re-exports to the new
+    implementation. This allows incremental migration.
+
+Import Conventions (TypeScript NodeNext)
+- The project uses `"module": "NodeNext"`, `"moduleResolution": "NodeNext"`,
+  and `"verbatimModuleSyntax": true`.
+- Runtime imports must use `.js` extensions, e.g.:
+  - `import { NotionService } from "./services/NotionService.js"`
+- Type-only imports may use `.ts` extensions to satisfy the compiler while
+  emitting no code, e.g.:
+  - `import type { ListResult } from "./types.ts"`
+- Do not omit extensions. Keep `.js` for values at runtime and use `.ts` for
+  type-only imports.

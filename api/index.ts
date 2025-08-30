@@ -4,10 +4,11 @@ import * as HttpRouter from "@effect/platform/HttpRouter";
 import * as HttpServer from "@effect/platform/HttpServer";
 // api/index.ts
 import { Layer, Logger } from "effect";
-import { NotionClient } from "../src/NotionClient.js";
-import { NotionService } from "../src/NotionService.js";
 import { AppConfigProviderLive } from "../src/config.js";
 import { app } from "../src/router.js";
+import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
+import { NotionClient } from "../src/services/NotionClient.js";
+import { NotionService } from "../src/services/NotionService.js";
 
 // CORS for serverless entrypoint (Bun/Edge style fetch handler)
 const corsMiddleware = HttpMiddleware.cors({
@@ -30,6 +31,7 @@ const AppLayers = Layer.mergeAll(
   // Provide external service layers so router handlers can access them
   NotionClient.Default,
   NotionService.Default,
+  ArticlesRepository.Default,
   HttpServer.layerContext
 );
 
@@ -42,17 +44,6 @@ const { handler: webHandler } = toWebHandlerLayerWith(AppLayers, {
 // Vercel Node v3 Web API entrypoint: (Request) => Promise<Response>
 export default async function handler(request: Request): Promise<Response> {
   try {
-    const url = new URL(request.url);
-    // Fast path: basic liveness without invoking the full Effect app
-    if (request.method === "GET" && url.pathname === "/api/ping") {
-      return new Response("ok\n", {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "content-type": "text/plain; charset=utf-8",
-        },
-      });
-    }
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }

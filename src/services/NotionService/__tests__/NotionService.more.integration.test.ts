@@ -2,9 +2,9 @@
 import { describe, it, expect } from "vitest";
 import { Effect, Layer } from "effect";
 import * as dotenv from "dotenv";
-import { NotionService } from "../src/NotionService.js";
-import { AppConfigProviderLive } from "../src/config.js";
-import { NotionClient } from "../src/NotionClient.js";
+import { NotionService } from "../../../NotionService.js";
+import { AppConfigProviderLive } from "../../../config.js";
+import { NotionClient } from "../../../NotionClient.js";
 
 // Load env
 dotenv.config();

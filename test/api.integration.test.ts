@@ -12,7 +12,7 @@ import { app } from "../src/router.js";
 // Load environment variables from .env file
 dotenv.config();
 
-const { NOTION_DATABASE_ID, NOTION_API_KEY, NOTION_PAGE_ID } = process.env;
+const { NOTION_DB_ARTICLES_BLOG, NOTION_API_KEY } = process.env;
 
 const TestLayer = Layer.mergeAll(
   Logger.json,
@@ -24,7 +24,7 @@ const TestLayer = Layer.mergeAll(
 
 const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer);
 
-describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID)(
+describe.skipIf(!NOTION_API_KEY || !NOTION_DB_ARTICLES_BLOG)(
   "API Integration Tests",
   () => {
     it("GET /api/health should return 200 OK", async () => {
@@ -39,7 +39,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID)(
     it("GET /api/get-database-schema should return a valid schema", async () => {
       const response = await testApp(
         new Request(
-          `http://localhost/api/get-database-schema?databaseId=${NOTION_DATABASE_ID}`
+          `http://localhost/api/get-database-schema?databaseId=${NOTION_DB_ARTICLES_BLOG}`
         )
       );
       expect(response.status).toBe(200);
@@ -68,7 +68,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID)(
         new Request("http://localhost/api/list-articles", {
           method: "POST",
           body: JSON.stringify({
-            databaseId: NOTION_DATABASE_ID,
+            databaseId: NOTION_DB_ARTICLES_BLOG,
           }),
         })
       );
@@ -76,61 +76,5 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID)(
       const body = await response.json();
       expect(Array.isArray(body.results)).toBe(true);
     });
-
-    it.skipIf(!NOTION_PAGE_ID)(
-      "GET /api/get-article-metadata should return metadata for a page",
-      async () => {
-        const response = await testApp(
-          new Request(
-            `http://localhost/api/get-article-metadata?pageId=${NOTION_PAGE_ID}`
-          )
-        );
-        expect(response.status).toBe(200);
-        const body = await response.json();
-        expect(body.id).toBe(NOTION_PAGE_ID);
-        expect(body.properties).toBeDefined();
-      }
-    );
-
-    it.skipIf(!NOTION_PAGE_ID)(
-      "GET /api/get-article-content should return content for a page",
-      async () => {
-        const response = await testApp(
-          new Request(
-            `http://localhost/api/get-article-content?pageId=${NOTION_PAGE_ID}`
-          )
-        );
-        expect(response.status).toBe(200);
-        const body = await response.json();
-        expect(body.content).toBeDefined();
-      }
-    );
-
-    it.skipIf(!NOTION_PAGE_ID)(
-      "POST /api/update-article-content should update the content of a page",
-      async () => {
-        const newContent = "Hello, world!";
-        const response = await testApp(
-          new Request("http://localhost/api/update-article-content", {
-            method: "POST",
-            body: JSON.stringify({
-              pageId: NOTION_PAGE_ID,
-              content: newContent,
-            }),
-          })
-        );
-        expect(response.status).toBe(204);
-
-        // Verify the content was updated
-        const verifyResponse = await testApp(
-          new Request(
-            `http://localhost/api/get-article-content?pageId=${NOTION_PAGE_ID}`
-          )
-        );
-        const body = await verifyResponse.json();
-        expect(body.content).toContain(newContent);
-      },
-      20000
-    );
   }
 );

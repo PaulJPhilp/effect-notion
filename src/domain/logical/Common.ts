@@ -18,15 +18,15 @@ export const BaseEntity = Schema.Struct({
   tags: Schema.Array(Schema.String),
   status: Schema.optional(Schema.String),
   publishedAt: Schema.optional(Schema.DateFromSelf),
+  warnings: Schema.optional(Schema.Array(Schema.String)),
 })
 export type BaseEntity = Schema.Schema.Type<typeof BaseEntity>
 
 export const ListParams = Schema.Struct({
   source: Schema.String,
-  pageSize: Schema.Number.pipe(
-    Schema.Int(),
-    Schema.Between(1, 100)
-  ).withDefault(() => 20),
+  pageSize: Schema.optional(
+    Schema.Number.pipe(Schema.int(), Schema.between(1, 100))
+  ),
   startCursor: Schema.optional(Schema.String),
   filter: Schema.optional(
     Schema.Struct({

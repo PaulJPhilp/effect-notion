@@ -4,13 +4,13 @@ import * as HttpServer from "@effect/platform/HttpServer";
 import { createServer } from "node:http";
 // src/main.ts
 import { Effect, Layer, Logger } from "effect";
-import { NotionService } from "./NotionService.js";
 import {
   AppConfig,
   AppConfigProviderLive,
   ValidatedAppConfig,
 } from "./config.js";
 import { app } from "./router.js";
+import { NotionService } from "./services/NotionService.js";
 
 // The main application logic, dependent on AppConfig
 const Main = Effect.gen(function* () {

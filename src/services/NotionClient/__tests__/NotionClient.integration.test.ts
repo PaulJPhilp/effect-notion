@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Effect } from "effect";
-import { NotionClient, InvalidApiKeyError, NotFoundError, InternalServerError } from "../src/NotionClient.js";
+import { NotionClient, InvalidApiKeyError, NotFoundError, InternalServerError } from "../../../NotionClient.js";
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -108,8 +108,19 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
       // This requires a page that allows appending blocks.
       // For simplicity, we'll use the NOTION_PAGE_ID and append a paragraph.
       const blocksToAppend = [
-        { object: "block", type: "paragraph", paragraph: { rich_text: [{ text: { content: "Block to be deleted" } }] } },
-      ];
+        {
+          object: "block" as const,
+          type: "paragraph" as const,
+          paragraph: {
+            rich_text: [
+              {
+                type: "text" as const,
+                text: { content: "Block to be deleted" },
+              },
+            ],
+          },
+        },
+      ] as const;
 
       const appendResult = await Effect.runPromise(
         Effect.gen(function* () {
@@ -117,7 +128,8 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
           return yield* client.appendBlockChildren(apiKey, pageId, blocksToAppend);
         }).pipe(Effect.provide(NotionClient.Default)),
       );
-      const newBlockId = appendResult.results[0].id;
+      expect(appendResult.results.length).toBeGreaterThan(0);
+      const newBlockId = appendResult.results[0]!.id;
 
       const deleteResult = await Effect.runPromiseExit(
         Effect.gen(function* () {
@@ -144,8 +156,19 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
 
     it("appendBlockChildren should succeed for valid page ID", async () => {
       const blocksToAppend = [
-        { object: "block", type: "paragraph", paragraph: { rich_text: [{ text: { content: "Appended block content" } }] } },
-      ];
+        {
+          object: "block" as const,
+          type: "paragraph" as const,
+          paragraph: {
+            rich_text: [
+              {
+                type: "text" as const,
+                text: { content: "Appended block content" },
+              },
+            ],
+          },
+        },
+      ] as const;
       const result = await Effect.runPromise(
         Effect.gen(function* () {
           const client = yield* NotionClient;
@@ -156,7 +179,8 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
       expect(result.results.length).toBeGreaterThan(0);
 
       // Clean up the appended block
-      const newBlockId = result.results[0].id;
+      expect(result.results.length).toBeGreaterThan(0);
+      const newBlockId = result.results[0]!.id;
       await Effect.runPromise(
         Effect.gen(function* () {
           const client = yield* NotionClient;
@@ -168,8 +192,19 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
     it("appendBlockChildren should fail with InternalServerError for invalid page ID", async () => {
       const invalidPageId = "00000000-0000-0000-0000-000000000000";
       const blocksToAppend = [
-        { object: "block", type: "paragraph", paragraph: { rich_text: [{ text: { content: "Appended block content" } }] } },
-      ];
+        {
+          object: "block" as const,
+          type: "paragraph" as const,
+          paragraph: {
+            rich_text: [
+              {
+                type: "text" as const,
+                text: { content: "Appended block content" },
+              },
+            ],
+          },
+        },
+      ] as const;
       const exit = await Effect.runPromiseExit(
         Effect.gen(function* () {
           const client = yield* NotionClient;

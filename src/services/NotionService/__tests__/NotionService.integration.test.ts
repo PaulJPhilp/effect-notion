@@ -1,9 +1,9 @@
 // test/NotionService.integration.test.ts
 import { describe, it, expect } from "vitest";
 import { Effect, Layer } from "effect";
-import { NotionService } from "../src/NotionService.js";
-import { AppConfigProviderLive } from "../src/config.js";
-import { NotionClient } from "../src/NotionClient.js";
+import { NotionService } from "../../../NotionService.js";
+import { AppConfigProviderLive } from "../../../config.js";
+import { NotionClient } from "../../../NotionClient.js";
 import * as dotenv from "dotenv";
 
 // Load environment variables from .env file

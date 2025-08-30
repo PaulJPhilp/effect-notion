@@ -1,4 +1,4 @@
-import type { BaseEntity, ListParams } from "../logical/Common"
+import type { BaseEntity, ListParams } from "../logical/Common.js"
 
 export interface EntityAdapter<E extends BaseEntity> {
   toNotionQuery: (args: {

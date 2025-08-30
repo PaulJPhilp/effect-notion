@@ -554,3 +554,30 @@ Open Questions (quick confirmations)
 - For people fields, do you want to expose Notion user name, email, or id? I suggest name || id to avoid requiring People read scope for emails.
 
 If you share the actual property names for your first two sources per kind, I can provide exact adapter files for each and a ready-to-run sources registry file.
+
+Modular Services and Import Conventions
+- Services under `src/services/` are organized per service with the following
+  files:
+  - `api.ts` — Effect tag and public interface.
+  - `types.ts` — request/response types and DTOs.
+  - `errors.ts` — domain-specific errors (optional).
+  - `helpers.ts` — pure helpers and mappers.
+  - `service.ts` — concrete implementation and `.Default` layer.
+  - `__tests__/` — colocated tests.
+
+- Backward compatibility: Keep top-level re-exports so legacy imports continue
+  to work during migration, e.g. `src/ArticlesRepository.ts` re-exports from
+  `src/services/ArticlesRepository/service.ts`.
+
+- TypeScript NodeNext rules (verbatim syntax):
+  - Use explicit extensions. `.js` for runtime value imports.
+  - Use `.ts` for type-only imports when importing from local files.
+  - Examples:
+    - `import { NotionService } from "../services/NotionService.js"`
+    - `import type { ListResult } from "./types.ts"`
+
+- Adding a new service:
+  1) Create folder `src/services/MyService/` with the files above.
+  2) Implement the interface in `api.ts` and the concrete layer in `service.ts`.
+  3) Add a compatibility shim `src/MyService.ts` re-exporting the new layer.
+  4) Update router handlers to depend on the service via its `.Default` layer.

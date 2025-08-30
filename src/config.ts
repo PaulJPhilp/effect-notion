@@ -37,10 +37,6 @@ export const AppConfig = Config.all({
   port: Config.number("PORT").pipe(Config.withDefault(3000)),
   corsOrigin: Config.string("CORS_ORIGIN").pipe(Config.withDefault("*")),
   logLevel: Config.logLevel("LOG_LEVEL").pipe(Config.withDefault(LogLevel.Info)),
-  // Default database ID (optional). Keep runtime discovery on-demand.
-  notionDatabaseId: Config.string("NOTION_DATABASE_ID").pipe(
-    Config.withDefault("")
-  ),
   // Optional, but required in production for integration paths.
   notionApiKey: Config.string("NOTION_API_KEY").pipe(Config.withDefault("")),
 });
@@ -67,7 +63,6 @@ export const ValidatedAppConfig = Effect.gen(function* () {
 // ----------------------------------------------------------------------------
 // Allow per-database mapping from app logical fields to Notion property names.
 // Example: map Article.slug -> "Slug" column in a specific database.
-//
 // Usage: add entries like:
 // LogicalFieldOverrides["<db-id>"] = { title: "Name", slug: "Slug" };
 export type LogicalFieldMap = Record<string, string>;
@@ -84,9 +79,3 @@ export const resolveLogicalField = (
 export const resolveTitleOverride = (
   databaseId: string,
 ): string | undefined => resolveLogicalField(databaseId, "title");
-
-// Expose a Config<string> for database id; callers can combine with others.
-export const DatabaseIdConfig = Config.map(
-  AppConfig,
-  (cfg) => cfg.notionDatabaseId,
-);

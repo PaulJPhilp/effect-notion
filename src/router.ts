@@ -15,15 +15,15 @@ import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
  * Tests and local servers can run this `app` directly in Effect-land.
  */
 import { Effect } from "effect";
-import { NotionService } from "./NotionService.js";
+import { formatParseError } from "./domain/adapters/schema/Errors.js";
 import { AppConfig } from "./config.js";
 import { badRequest, internalError, notFound, unauthorized } from "./errors.js";
+import applyArticlesRoutes from "./router/articles.js";
 import * as ApiSchema from "./schema.js";
+import { NotionService } from "./services/NotionService.js";
 import { validateListArticlesRequestAgainstSchema } from "./validation.js";
 
-const apiRouter = HttpRouter.empty.pipe(
-  // Simple ping for diagnostics
-  HttpRouter.get("/api/ping", HttpServerResponse.text("ok\n", { status: 200 })),
+let apiRouter = HttpRouter.empty.pipe(
   // --- Endpoints ---
   HttpRouter.post(
     "/api/list-articles",
@@ -63,8 +63,7 @@ const apiRouter = HttpRouter.empty.pipe(
         body.startCursor
       );
       yield* Effect.logInfo(
-        `list-articles: success count=${result.results.length}, hasMore=${
-          result.hasMore
+        `list-articles: success count=${result.results.length}, hasMore=${result.hasMore
         }, nextCursor=${String(result.nextCursor)}`
       );
 
@@ -124,27 +123,15 @@ const apiRouter = HttpRouter.empty.pipe(
       const hasApiKey = Boolean(
         cfg.notionApiKey && cfg.notionApiKey.length > 0
       );
-      let notionOk: boolean | undefined = undefined;
-      let error: string | undefined = undefined;
-      if (cfg.notionDatabaseId) {
-        const notionService = yield* NotionService;
-        const attempt = yield* Effect.either(
-          notionService.getDatabaseSchema(cfg.notionDatabaseId)
-        );
-        if (attempt._tag === "Right") notionOk = true;
-        else {
-          notionOk = false;
-          error = String(attempt.left);
-        }
-      }
-      const ok = hasApiKey && notionOk !== false;
+      // Only check presence of API key (no generic DB implied)
+      const ok = hasApiKey;
       const body = {
         ok,
         env: cfg.env,
         hasApiKey,
-        checkedDatabaseId: cfg.notionDatabaseId || null,
-        notionOk,
-        error: error ?? null,
+        checkedDatabaseId: null,
+        notionOk: undefined,
+        error: null,
       } as const;
       return yield* HttpServerResponse.json(body, { status: ok ? 200 : 503 });
     })
@@ -197,6 +184,9 @@ const apiRouter = HttpRouter.empty.pipe(
   )
 );
 
+// Compose feature routers
+apiRouter = applyArticlesRoutes(apiRouter);
+
 // --- Full App with Error Handling ---
 const routerWithErrors = apiRouter.pipe(
   HttpRouter.catchTags({
@@ -208,8 +198,9 @@ const routerWithErrors = apiRouter.pipe(
       }),
     ParseError: (e) =>
       Effect.gen(function* () {
-        yield* Effect.logWarning(`catchTags: ParseError ${String(e)}`);
-        return yield* badRequest({ detail: e });
+        const pretty = formatParseError(e);
+        yield* Effect.logWarning(`catchTags: ParseError ${pretty}`);
+        return yield* badRequest({ detail: pretty });
       }),
     BadRequestError: (e) =>
       Effect.gen(function* () {
@@ -226,10 +217,10 @@ const routerWithErrors = apiRouter.pipe(
         yield* Effect.logWarning("catchTags: NotFoundError");
         return yield* notFound();
       }),
-    InternalServerError: () =>
+    InternalServerError: (e) =>
       Effect.gen(function* () {
         yield* Effect.logError("catchTags: InternalServerError");
-        return yield* internalError();
+        return yield* internalError(e);
       }),
     HttpBodyError: (e) =>
       Effect.gen(function* () {

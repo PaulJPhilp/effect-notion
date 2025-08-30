@@ -23,6 +23,12 @@ Notion API.
 Your frontend talks to this server; the server (holding your
 `NOTION_API_KEY`) talks to Notion.
 
+### Schema-driven adapters
+
+See `docs/SchemaAdapter.md` for the schema-driven adapter pattern used to
+map Notion property bags to domain entities using Effect Schema, including
+how to add new field mappings.
+
 ## Features
 
 - **Secure Notion API Proxy**: Safely access the Notion API without exposing your credentials on the client-side.
@@ -38,9 +44,8 @@ Your frontend talks to this server; the server (holding your
 - `src/router.ts`: Effect `HttpRouter` defining the API surface. It is the
   source of truth for business logic and error handling.
 - `api/index.ts`: Vercel Node v3 adapter. It converts the router to a
-  Fetch-style handler and applies logging + CORS. Note: this adapter currently
-  implements a minimal fast-path for `GET /api/ping` and handles `OPTIONS`
-  preflight before invoking the router.
+  Fetch-style handler and applies logging + CORS. Health and all routes
+  are served via the router (no fast-path bypasses).
 - `src/main.ts`: Local Bun/Node server entry for development using the
   Effect Node HTTP server integration.
 
@@ -75,8 +80,11 @@ Loaded at startup in this order (later overrides earlier):
 - `CORS_ORIGIN`: CORS allowed origin(s). Default: `*`.
 - `LOG_LEVEL`: Effect logger level. Default: `Info`.
 - `NOTION_API_KEY`: Your Notion integration key.
-- `NOTION_DATABASE_ID`: Optional default database id.
-- `NOTION_PAGE_ID`: Optional default page id.
+
+- `NOTION_DB_ARTICLES_BLOG`: Optional database id for the `articles`
+  router when using the `blog` source. If set, the `articles` endpoints can
+  read/write from this database using the blog adapter. See the "Articles"
+  API section below.
 
 ## Quick Start
 
@@ -104,6 +112,27 @@ Diagnostics helper:
 bun scripts/diagnose.ts /api/health
 ```
 
+You can also POST JSON bodies to exercise routes end-to-end. The script
+prints request/response details and structured logs.
+
+Usage:
+
+```bash
+# GET (default method)
+bun scripts/diagnose.ts "/api/health"
+
+# POST with JSON body
+bun scripts/diagnose.ts "/api/articles/list" POST '{"source":"blog","pageSize":5}'
+
+# Arbitrary path + body
+bun scripts/diagnose.ts "/api/your/route" POST '{"key":"value"}'
+```
+
+Notes:
+
+- Content-Type is set to `application/json` automatically for POST bodies.
+- Logs include pre-response info and Effect structured logs at Debug level.
+
 ## API Endpoints
 
 Note on HTTP methods:
@@ -112,12 +141,7 @@ Note on HTTP methods:
 - Use POST when a structured JSON body is required (e.g., filters/sorts for
   listing; content payload for update).
 
-### Ping (liveness)
-
-- **Endpoint**: `GET /api/ping`
-- **Description**: Simple liveness probe. Returns `ok`.
-
-
+<!-- Ping endpoint removed in favor of router-based health check. Use /api/health. -->
 ### List Articles (paginated)
 
 - **Endpoint**: `POST /api/list-articles`
@@ -253,14 +277,66 @@ All error responses follow a consistent JSON structure and include a request ID:
 ### Health (router-based)
 
 - **Endpoint**: `GET /api/health`
-- **Description**: Reports server health. If `NOTION_DATABASE_ID` is set, the
-  server performs a real Notion call to validate connectivity.
+- **Description**: Reports server health via the router.
 
 **Example:**
 
 ```bash
 curl "http://localhost:3000/api/health"
 ```
+
+### Articles (router-based, source-aware)
+
+These endpoints operate on logical "articles" and are parameterized by a
+`source` (e.g., `blog`). Sources are configured in
+`src/domain/registry/sources.ts` from environment variables.
+
+- Current built-in source:
+  - `blog` → requires `NOTION_DB_ARTICLES_BLOG` to be set.
+
+All POST requests require `Content-Type: application/json`.
+
+• List
+- Endpoint: `POST /api/articles/list`
+- Body:
+```json
+{ "source": "blog", "pageSize": 20 }
+```
+
+• Get by id
+- Endpoint: `GET /api/articles/get`
+- Query: `source=blog&pageId=<PAGE_ID>`
+
+• Create
+- Endpoint: `POST /api/articles/create`
+- Body (partial fields are allowed):
+```json
+{ "source": "blog", "data": { "name": "New Article" } }
+```
+
+• Update
+- Endpoint: `POST /api/articles/update`
+- Body (partial fields are allowed):
+```json
+{
+  "source": "blog",
+  "pageId": "<PAGE_ID>",
+  "patch": { "name": "Updated" }
+}
+```
+
+• Delete (archive)
+- Endpoint: `POST /api/articles/delete`
+- Body:
+```json
+{ "source": "blog", "pageId": "<PAGE_ID>" }
+```
+
+Notes:
+- Field shapes align with `src/domain/logical/Common.ts` (`BaseEntity`,
+  `ListParams`).
+- The Notion mapping is handled by the source adapter, e.g.,
+  `src/domain/adapters/articles/blog.adapter.ts`.
 
 ## Advanced Features
 
@@ -304,7 +380,6 @@ bun scripts/generate-notion-schema.ts \
 Defaults:
 
 - `apiKey`: `NOTION_API_KEY`
-- `databaseId`: `NOTION_DATABASE_ID`
 - `out`: `src/generated/notion-schema.ts`
 
 Outputs:
@@ -355,4 +430,33 @@ Before submitting a PR, ensure build and tests pass:
 ```bash
 bun run build  # type-check
 bun test       # run tests
+```
+
+## Modular Services & Import Conventions
+
+- Services live under `src/services/<ServiceName>/` with a consistent layout:
+  - `api.ts` — public interface and Effect tag
+  - `types.ts` — request/response types
+  - `errors.ts` — typed errors (optional)
+  - `helpers.ts` — pure helpers
+  - `service.ts` — implementation and `.Default` layer
+  - `__tests__/` — colocated tests
+
+- Backward compatibility is preserved with re-exports:
+  - `src/<ServiceName>.ts` re-exports from
+    `src/services/<ServiceName>/service.ts`
+  - `src/services/<ServiceName>.ts` (legacy) also re-exports to the new impl
+
+- TypeScript NodeNext with verbatim syntax requires explicit extensions:
+  - Use `.js` for runtime imports of values
+  - Use `.ts` for type-only imports
+
+Example:
+
+```ts
+// runtime
+import { NotionService } from "./src/services/NotionService/service.js"
+
+// type-only
+import type { ListResult } from "./src/services/ArticlesRepository/types.ts"
 ```

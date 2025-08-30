@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { __test__mapStatusToError } from "../src/NotionClient.js";
+import { __test__mapStatusToError } from "../../../NotionClient.js";
 
 // Verify 5xx responses map to InternalServerError and include body as cause.
 describe("NotionClient error mapping helper", () => {
