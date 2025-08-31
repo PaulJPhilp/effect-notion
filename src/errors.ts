@@ -1,6 +1,7 @@
 import * as HttpServerRequest from "@effect/platform/HttpServerRequest";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
 import { Effect } from "effect";
+import { getCurrentRequestId } from "./http/requestId.js";
 
 export interface ApiErrorBody {
   readonly error: string;
@@ -24,9 +25,11 @@ export function errorResponse(args: {
   return Effect.gen(function* () {
     const req = yield* HttpServerRequest.HttpServerRequest;
     const headers = req.headers;
-    const headerReqId =
-      (headers["x-request-id"] as string | undefined) ?? undefined;
-    const requestId = headerReqId || generateRequestId();
+
+    // Try to get request ID from FiberRef first, then header, then generate
+    const fiberReqId = yield* getCurrentRequestId();
+    const headerReqId = headers["x-request-id"] as string | undefined;
+    const requestId = fiberReqId || headerReqId || generateRequestId();
 
     const body: ApiErrorBody = {
       error: args.error,
@@ -51,8 +54,10 @@ export const badRequest = (options?: {
     status: 400,
     code: "BadRequest",
     error: "Bad Request",
-    detail: options?.detail,
-    errors: options?.errors,
+    ...(options?.detail !== undefined ? { detail: options.detail } : {}),
+    ...(options?.errors && options.errors.length > 0
+      ? { errors: options.errors }
+      : {}),
   });
 
 export const unauthorized = (detail?: unknown) =>
@@ -60,7 +65,7 @@ export const unauthorized = (detail?: unknown) =>
     status: 401,
     code: "InvalidApiKey",
     error: "Invalid API Key",
-    detail,
+    ...(detail !== undefined ? { detail } : {}),
   });
 
 export const notFound = (detail?: unknown) =>
@@ -68,7 +73,7 @@ export const notFound = (detail?: unknown) =>
     status: 404,
     code: "NotFound",
     error: "Resource not found",
-    detail,
+    ...(detail !== undefined ? { detail } : {}),
   });
 
 export const internalError = (detail?: unknown) =>
@@ -76,5 +81,5 @@ export const internalError = (detail?: unknown) =>
     status: 500,
     code: "InternalServerError",
     error: "Internal Server Error",
-    detail,
+    ...(detail !== undefined ? { detail } : {}),
   });

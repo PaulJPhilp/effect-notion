@@ -1,16 +1,16 @@
-import type { EntityAdapter } from "../../adapters/Adapter.js"
-import type { BaseEntity, ListParams } from "../../logical/Common.js"
-import * as S from "effect/Schema"
-import { Either } from "effect"
-import { formatParseError } from "../schema/Errors.js"
-import { logWarn } from "../schema/Logger.js"
+import { Either } from "effect";
+import * as S from "effect/Schema";
+import type { EntityAdapter } from "../../adapters/Adapter.js";
+import type { BaseEntity, ListParams } from "../../logical/Common.js";
+import { formatParseError } from "../schema/Errors.js";
+import { logWarn } from "../schema/Logger.js";
 import {
+  DateFromNotionDate,
+  PlainTextFromRichText,
+  PlainTextFromTitle,
   defineDomainWithNotion,
   makeConfigFromAnnotations,
-  PlainTextFromTitle,
-  PlainTextFromRichText,
-  DateFromNotionDate,
-} from "../schema/index.js"
+} from "../schema/index.js";
 
 const P = {
   name: "Title", // title
@@ -19,23 +19,29 @@ const P = {
   tags: "Tags", // multi_select
   status: "Status", // select
   publishedAt: "Published Date", // date
-}
+};
 
 export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
   toNotionQuery: ({
     databaseId,
     params,
   }: {
-    databaseId: string
-    params: ListParams
+    databaseId: string;
+    params: ListParams;
   }) => {
-    const and: any[] = []
+    const and: any[] = [];
 
     if (params.filter?.statusEquals) {
-      and.push({ property: P.status, select: { equals: params.filter.statusEquals } })
+      and.push({
+        property: P.status,
+        select: { equals: params.filter.statusEquals },
+      });
     }
     if (params.filter?.typeEquals) {
-      and.push({ property: P.type, select: { equals: params.filter.typeEquals } })
+      and.push({
+        property: P.type,
+        select: { equals: params.filter.typeEquals },
+      });
     }
     if (params.filter?.tagIn && params.filter.tagIn.length > 0) {
       and.push(
@@ -43,22 +49,22 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
           property: P.tags,
           multi_select: { contains: t },
         }))
-      )
+      );
     }
     if (params.filter?.publishedAfter) {
       and.push({
         property: P.publishedAt,
         date: { on_or_after: params.filter.publishedAfter.toISOString() },
-      })
+      });
     }
     if (params.filter?.publishedBefore) {
       and.push({
         property: P.publishedAt,
         date: { on_or_before: params.filter.publishedBefore.toISOString() },
-      })
+      });
     }
 
-    const filter = and.length ? { and } : undefined
+    const filter = and.length ? { and } : undefined;
 
     const sort =
       params.sort?.key === "name"
@@ -67,14 +73,19 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
         ? { property: P.publishedAt, direction: params.sort.direction }
         : params.sort?.key === "updatedAt"
         ? { timestamp: "last_edited_time", direction: params.sort.direction }
-        : { timestamp: "created_time", direction: params?.sort?.direction ?? "descending" }
+        : {
+            timestamp: "created_time",
+            direction: params?.sort?.direction ?? "descending",
+          };
 
     return {
-      filter,
+      ...(filter !== undefined ? { filter } : {}),
       sorts: [sort],
       page_size: params.pageSize ?? 20,
-      start_cursor: params.startCursor,
-    }
+      ...(params.startCursor !== undefined
+        ? { start_cursor: params.startCursor }
+        : {}),
+    };
   },
 
   fromNotionPage: ({
@@ -82,11 +93,11 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
     databaseId,
     page,
   }: {
-    source: string
-    databaseId: string
-    page: any
+    source: string;
+    databaseId: string;
+    page: any;
   }) => {
-    const props = page.properties as Record<string, any>
+    const props = page.properties as Record<string, any>;
 
     // --- Schema-driven subset mapping ---
     const shape = {
@@ -96,7 +107,7 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       tags: S.Array(S.String),
       status: S.optional(S.String),
       publishedAt: S.optional(S.Date),
-    }
+    };
 
     const ann = defineDomainWithNotion(shape, {
       name: P.name,
@@ -105,12 +116,12 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       tags: P.tags,
       status: P.status,
       publishedAt: P.publishedAt,
-    })
+    });
 
     // Local transforms for select and multi_select
     const SelectProp = S.Struct({
       select: S.Union(S.Null, S.Struct({ name: S.String })),
-    })
+    });
     const SelectCodec = S.transform(
       SelectProp,
       S.Union(S.String, S.Undefined),
@@ -119,24 +130,20 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
         decode: (p) => p.select?.name,
         encode: (s) => ({ select: s ? ({ name: s } as const) : null }),
       }
-    )
+    );
 
     const MultiSelectProp = S.Struct({
       multi_select: S.Array(S.Struct({ name: S.String })),
-    })
-    const MultiSelectCodec = S.transform(
-      MultiSelectProp,
-      S.Array(S.String),
-      {
-        strict: true,
-        decode: (p) => p.multi_select.map((o) => o.name),
-        encode: (arr) => ({
-          multi_select: arr.map((name) => ({ name } as const)) as readonly {
-            readonly name: string
-          }[],
-        }),
-      }
-    )
+    });
+    const MultiSelectCodec = S.transform(MultiSelectProp, S.Array(S.String), {
+      strict: true,
+      decode: (p) => p.multi_select.map((o) => o.name),
+      encode: (arr) => ({
+        multi_select: arr.map((name) => ({ name } as const)) as readonly {
+          readonly name: string;
+        }[],
+      }),
+    });
 
     const codecs = {
       name: PlainTextFromTitle,
@@ -145,25 +152,25 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       tags: MultiSelectCodec,
       status: SelectCodec,
       publishedAt: DateFromNotionDate,
-    } as const
+    } as const;
 
-    const cfg = makeConfigFromAnnotations(ann, codecs)
+    const cfg = makeConfigFromAnnotations(ann, codecs);
 
     // Decode subset fields and aggregate non-fatal warnings
-    const decoded: any = {}
-    const warnings: Array<string> = []
+    const decoded: any = {};
+    const warnings: Array<string> = [];
     for (const [k, m] of Object.entries(cfg)) {
-      const res = S.decodeEither(m.codec)(props[m.notionName])
+      const res = S.decodeEither(m.codec)(props[m.notionName]);
       if (Either.isRight(res)) {
-        decoded[k] = res.right
+        decoded[k] = res.right;
       } else {
         // Best-effort logging; adapter runs outside Effect context
-        const msg = formatParseError(res.left)
+        const msg = formatParseError(res.left);
         // Include source, pageId, property name for diagnostics
         logWarn(
           `blog.adapter.fromNotionPage decode failed: src=${source} page=${page.id} prop=${m.notionName} -> ${msg}`
-        )
-        warnings.push(`prop=${m.notionName}: ${msg}`)
+        );
+        warnings.push(`prop=${m.notionName}: ${msg}`);
       }
     }
 
@@ -191,21 +198,17 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       tags: decoded.tags ?? [],
       status: decoded.status,
       publishedAt: decoded.publishedAt,
-    } as BaseEntity & { warnings?: ReadonlyArray<string> }
+    } as BaseEntity & { warnings?: ReadonlyArray<string> };
 
     if (warnings.length > 0) {
-      entity.warnings = warnings
+      entity.warnings = warnings;
     }
 
-    return entity
+    return entity;
   },
 
-  toNotionProperties: ({
-    patch,
-  }: {
-    patch: Partial<BaseEntity>
-  }) => {
-    const props: Record<string, any> = {}
+  toNotionProperties: ({ patch }: { patch: Partial<BaseEntity> }) => {
+    const props: Record<string, any> = {};
 
     // Recreate the same config used in fromNotionPage
     const shape = {
@@ -215,7 +218,7 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       tags: S.Array(S.String),
       status: S.optional(S.String),
       publishedAt: S.optional(S.Date),
-    }
+    };
 
     const ann = defineDomainWithNotion(shape, {
       name: P.name,
@@ -224,11 +227,11 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       tags: P.tags,
       status: P.status,
       publishedAt: P.publishedAt,
-    })
+    });
 
     const SelectProp = S.Struct({
       select: S.Union(S.Null, S.Struct({ name: S.String })),
-    })
+    });
     const SelectCodec = S.transform(
       SelectProp,
       S.Union(S.String, S.Undefined),
@@ -237,24 +240,20 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
         decode: (p) => p.select?.name,
         encode: (s) => ({ select: s ? ({ name: s } as const) : null }),
       }
-    )
+    );
 
     const MultiSelectProp = S.Struct({
       multi_select: S.Array(S.Struct({ name: S.String })),
-    })
-    const MultiSelectCodec = S.transform(
-      MultiSelectProp,
-      S.Array(S.String),
-      {
-        strict: true,
-        decode: (p) => p.multi_select.map((o) => o.name),
-        encode: (arr) => ({
-          multi_select: arr.map((name) => ({ name } as const)) as readonly {
-            readonly name: string
-          }[],
-        }),
-      }
-    )
+    });
+    const MultiSelectCodec = S.transform(MultiSelectProp, S.Array(S.String), {
+      strict: true,
+      decode: (p) => p.multi_select.map((o) => o.name),
+      encode: (arr) => ({
+        multi_select: arr.map((name) => ({ name } as const)) as readonly {
+          readonly name: string;
+        }[],
+      }),
+    });
 
     const codecs = {
       name: PlainTextFromTitle,
@@ -263,19 +262,19 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       tags: MultiSelectCodec,
       status: SelectCodec,
       publishedAt: DateFromNotionDate,
-    } as const
+    } as const;
 
-    const cfg = makeConfigFromAnnotations(ann, codecs)
+    const cfg = makeConfigFromAnnotations(ann, codecs);
 
     // Encode only provided keys
     for (const [k, v] of Object.entries(patch)) {
-      if (!(k in cfg)) continue
-      if (v === undefined) continue
-      const m = (cfg as any)[k]
-      const res = S.encodeEither(m.codec)(v as any)
-      if (Either.isRight(res)) props[m.notionName] = res.right
+      if (!(k in cfg)) continue;
+      if (v === undefined) continue;
+      const m = (cfg as any)[k];
+      const res = S.encodeEither(m.codec)(v as any);
+      if (Either.isRight(res)) props[m.notionName] = res.right;
     }
 
-    return props
+    return props;
   },
-}
+};

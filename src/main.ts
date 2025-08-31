@@ -8,19 +8,16 @@ import {
   AppConfig,
   AppConfigProviderLive,
   ValidatedAppConfig,
+  buildCorsOptions,
 } from "./config.js";
 import { app } from "./router.js";
-import { NotionService } from "./services/NotionService.js";
+import { NotionService } from "./services/NotionService/service.js";
 
 // The main application logic, dependent on AppConfig
 const Main = Effect.gen(function* () {
   const config = yield* AppConfig;
 
-  const corsMiddleware = HttpMiddleware.cors({
-    allowedOrigins: [config.corsOrigin],
-    allowedMethods: ["POST", "GET"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  });
+  const corsMiddleware = HttpMiddleware.cors(buildCorsOptions(config));
 
   // Perform non-fatal config validation (e.g., prod requires NOTION_API_KEY)
   const validation = yield* Effect.either(ValidatedAppConfig);
@@ -58,8 +55,14 @@ const Main = Effect.gen(function* () {
   return yield* main.pipe(Effect.asVoid);
 });
 
+// Create log level layer from config
+const LogLevelLayer = Layer.unwrapEffect(
+  AppConfig.pipe(Effect.map((cfg) => Logger.minimumLogLevel(cfg.logLevel)))
+);
+
 const AppLayers = Layer.mergeAll(
   Logger.json,
+  LogLevelLayer,
   AppConfigProviderLive,
   NotionService.Default
 );

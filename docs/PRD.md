@@ -1,15 +1,15 @@
 Product Requirements Document (PRD)
-- Title: Multi-Database, Multi-Kind Support with Virtual Tables and Per-DB Repositories
+- Title: Multi-Database Articles, Adapter-Driven Mapping, Backward-Compatible APIs
 - Owner: Paul
-- Date: 27 Aug 2025
+- Date: 30 Aug 2025
 - Summary
-  - Extend the existing Effect-based Notion Proxy Server to support multiple logical kinds (articles, changelog, projects), each of which can be backed by one or more Notion databases.
-  - Use “Virtual Table per kind” abstraction with “Repository per physical database,” routed by source alias. Two-way (read/write) operations for all kinds and sources.
+  - Extend the Effect-based Notion proxy to support multiple databases (sources) for the Articles kind behind a stable, typed API.
+  - Keep the schema-driven adapter pattern and lay groundwork for future kinds (changelog, projects).
 - Goals
   - Support multiple databases (sources) under one Notion API key.
   - Keep client API stable via logical models and field names decoupled from Notion property names.
-  - Two-way CRUD for all kinds and sources.
-  - Use Notion system fields when possible for created/updated times and users.
+  - Two-way CRUD for Articles; archive on delete.
+  - Expose content read/write endpoints for Articles.
   - Maintain normalized, consistent error envelopes with requestId.
   - Run on Bun locally and Vercel Edge/Node (2 GB memory).
 - Non-Goals
@@ -17,19 +17,21 @@ Product Requirements Document (PRD)
   - Full-text search.
   - Build-time code generation and schema registry (may be added later).
 - Users and Use Cases
-  - Frontend apps (blogs, docs sites, portfolios) needing secure Notion access without exposing API keys, now spanning multiple databases and kinds.
+  - Frontend apps (blogs, docs sites, portfolios) needing secure Notion access without exposing API keys, spanning multiple databases for Articles.
 - Functional Requirements
-  - Kinds: articles, changelog, projects.
+  - Kinds: Articles implemented; changelog and projects planned.
   - Routing:
-    - Endpoints are namespaced per kind: /api/articles/*, /api/changelog/*, /api/projects/*.
+    - Endpoints are namespaced per kind: /api/articles/* (implemented), /api/changelog/*, /api/projects/* (planned).
     - Each request requires a source alias identifying the physical database.
-  - CRUD
-    - list: POST /api/{kind}/list with filters/sorts/cursor; returns paginated results.
-    - get: GET /api/{kind}/get?pageId=&source=
-    - create: POST /api/{kind}/create
-    - update: POST /api/{kind}/update
-    - delete (archive): POST /api/{kind}/delete (archives page in Notion).
-  - Logical Model Fields (common across kinds)
+  - CRUD (Articles)
+    - list: POST /api/articles/list with filters/sorts/cursor; returns { results, hasMore, nextCursor }.
+    - get: GET /api/articles/get?pageId=&source=; returns BaseEntity (+ optional warnings).
+    - create: POST /api/articles/create; returns created BaseEntity.
+    - update: POST /api/articles/update; returns updated BaseEntity.
+    - delete (archive): POST /api/articles/delete; archives the page (204).
+  - Backward-compatible endpoints (retained)
+    - POST /api/list-articles, GET /api/get-database-schema, GET /api/get-article-metadata, GET /api/get-article-content, POST /api/update-article-content.
+  - Logical Model Fields (Articles)
     - id (logical): `${source}_${pageId}`
     - source (alias), pageId, databaseId
     - name (string), description (string?)
@@ -37,7 +39,8 @@ Product Requirements Document (PRD)
     - createdBy, updatedBy (from Notion system created_by, last_edited_by; stringify name or id)
     - type (string?), tags (string[]), status (string?)
     - publishedAt (Date?)
-  - Filters/Sorts
+    - warnings? (string[]) — non-fatal adapter decode notes
+  - Filters/Sorts (Articles list)
     - Filters: statusEquals, typeEquals, tagIn (OR across tags), publishedAfter, publishedBefore
     - Sorts: by publishedAt, updatedAt, createdAt, name; ascending/descending
   - Validation
@@ -50,15 +53,15 @@ Product Requirements Document (PRD)
   - Security: Server holds NOTION_API_KEY; CORS restricted via CORS_ORIGIN.
   - Deployability: Vercel Node v3 (and Edge if applicable), Bun local dev.
 - Acceptance Criteria
-  - For each kind, list/get/create/update/delete endpoints function against at least two configured sources.
-  - Correct mapping of system fields and logical fields.
+  - Articles endpoints function against at least one configured source.
+  - Correct mapping of system fields and logical fields; warnings surfaced when present.
   - Request validation rejects invalid payloads; responses conform to schemas.
   - Deleting archives the Notion page.
   - Observability: logs include requestId and source; errors contain normalized envelope.
 
 Architecture
 - Pattern Overview
-  - Virtual Table per kind: defines a logical schema and capabilities for each kind (articles, changelog, projects).
+  - Virtual Table per kind: defines a logical schema and capabilities for each kind (articles implemented; changelog, projects planned).
   - Repository per database: each source alias maps to a specific Notion databaseId and adapter implementing logical<->Notion mapping. No cross-source aggregation by default.
 - Components
   - Domain Schemas (Effect Schema):
@@ -76,8 +79,7 @@ Architecture
   - Registry
     - Maps (kind, sourceAlias) -> { databaseId, adapter, capabilities }.
   - Router
-    - Three routers: ArticlesRouter, ChangelogRouter, ProjectsRouter.
-    - Endpoints: /api/{kind}/list|get|create|update|delete. Require source alias.
+    - ArticlesRouter implemented: /api/articles/list|get|create|update|delete. Requires source alias.
     - Input validated via schemas; outputs validated in development or behind a flag.
   - Notion Client
     - Thin wrapper around official Notion SDK or fetch with typed methods (databases.query, pages.retrieve, pages.create, pages.update).
@@ -107,7 +109,6 @@ Architecture
 - Configuration
   - Env variables for each source databaseId, e.g.:
     - NOTION_DB_ARTICLES_BLOG, NOTION_DB_ARTICLES_HANDBOOK
-    - NOTION_DB_CHANGELOG_MAIN, NOTION_DB_PROJECTS_MAIN, etc.
   - Registry constructed at startup from envs.
 - Security
   - NOTION_API_KEY only on server. CORS via CORS_ORIGIN. No client secrets.

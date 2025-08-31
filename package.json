@@ -11,6 +11,9 @@
     "start": "bun src/main.ts",
     "dev": "bun --watch src/main.ts",
     "test": "bun test",
+    "lint": "bunx @biomejs/biome check .",
+    "format": "bunx @biomejs/biome format --write .",
+    "typecheck": "bun tsc --noEmit",
     "build": "bun tsc",
     "codegen:notion": "bun scripts/generate-notion-schema.ts"
   },
@@ -18,17 +21,14 @@
     "@effect/test": "^0.1.0",
     "@types/bun": "latest",
     "@types/marked": "^6.0.0",
-    "dotenv": "^17.2.1",
     "vitest": "^3.2.4"
   },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
-  },
   "dependencies": {
-    "@effect/platform": "^0.94.0",
-    "@effect/platform-node": "^0.94.0",
+    "@effect/platform": "^0.90.6",
+    "@effect/platform-node": "^0.96.0",
     "@effect/schema": "^0.75.5",
-    "effect": "^3.17.8",
-    "marked": "^16.2.0"
+    "effect": "^3.17.9",
+    "marked": "^16.2.1",
+    "dotenv": "^17.2.1"
   }
 }

@@ -11,7 +11,14 @@ type/code generation.
 
 ## Who is this for?
 
-This server is ideal for developers building front-end applications (e.g., blogs, documentation sites, personal portfolios) that use Notion as a CMS. It acts as a secure and robust backend layer, abstracting away the complexities of the Notion API and preventing the exposure of API keys on the client-side.
+This server is ideal for developers building front-end applications (e.g., blogs, documentation sites, personal portfolios) that use Notion as a CMS. It acts as a secure and robust backend layer, abstracting away the complexities of the Notion API and preventing the exposure of API keys on the client-side.  Think of it as a "smart bridge" that makes Notion work like a traditional database while keeping all the benefits of Notion's interface and collaboration features.
+
+## Key Benefits
+Security: API keys never leave your server
+Type Safety: Full TypeScript support with generated types
+Flexibility: Decouples your app from Notion's exact schema
+Performance: Built for production with Effect's concurrent processing
+Deployment Ready: Works with Vercel and other platforms
 
 ## Architecture
 
@@ -34,10 +41,12 @@ how to add new field mappings.
 - **Secure Notion API Proxy**: Safely access the Notion API without exposing your credentials on the client-side.
 - **Rich Filtering Capabilities**: Dynamically filter Notion database entries using a flexible JSON-based query language.
 - **Logical Field Overrides**: Decouple your application from your Notion schema by mapping Notion's field names to logical names in your code.
-- **Codegen for Type Safety**: Generate TypeScript types from your live Notion database to ensure end-to-end type safety.
+- **Codegen for Type Safety**: Generate TypeScript types and Effect Schema from your live Notion database to ensure end-to-end type safety.
 - **Built with Effect**: Leverages the Effect library for a highly performant, concurrent, and error-resilient server.
 - **Ready to Deploy**: Includes configurations for easy deployment to services like Vercel.
 - **Consistent Error Model**: All errors return normalized JSON with a stable shape and a `requestId` for tracing.
+- **Performance Monitoring**: Built-in metrics collection and monitoring via `/api/metrics` endpoint.
+- **Advanced Error Handling**: Circuit breakers and retry strategies for improved reliability and fault tolerance.
 
 ## Runtime and adapters
 
@@ -53,15 +62,34 @@ Logging & CORS:
 - Both entry points enable structured logging via `HttpMiddleware.logger`.
 - CORS is enabled; configure via `CORS_ORIGIN`.
 
+## Performance Monitoring & Resilience
+
+The application includes built-in performance monitoring and advanced error handling:
+
+- **Metrics Endpoint**: `/api/metrics` provides real-time metrics in Prometheus format
+- **Circuit Breakers**: Automatic fault tolerance for Notion API calls
+- **Retry Strategies**: Intelligent retry logic with exponential backoff
+- **Request Tracing**: Every request includes a unique ID for correlation
+
+See `docs/METRICS_AND_RESILIENCE.md` for detailed documentation and usage examples.
+
 ## Configuration & Security
 
 This server is the **sole keeper** of your `NOTION_API_KEY`. Never expose or
 send this key from the client.
 
-Create a `.env` file at the project root by copying `.env.example`:
+Create a `.env` file at the project root with the following variables:
 
 ```bash
-cp .env.example .env
+# Required
+NOTION_API_KEY=your_notion_integration_key_here
+
+# Optional
+NODE_ENV=development
+PORT=3000
+CORS_ORIGIN=*
+LOG_LEVEL=Info
+NOTION_DB_ARTICLES_BLOG=your_blog_database_id_here
 ```
 
 ### Env file precedence
@@ -78,9 +106,10 @@ Loaded at startup in this order (later overrides earlier):
 - `NODE_ENV` (development | test | production). Default: development.
 - `PORT`: Port for local server. Default: 3000.
 - `CORS_ORIGIN`: CORS allowed origin(s). Default: `*`.
+- `CORS_ALLOWED_METHODS`: Comma-separated list of allowed HTTP methods. Default: `POST,GET,OPTIONS`.
+- `CORS_ALLOWED_HEADERS`: Comma-separated list of allowed headers. Default: `Content-Type,Authorization`.
 - `LOG_LEVEL`: Effect logger level. Default: `Info`.
 - `NOTION_API_KEY`: Your Notion integration key.
-
 - `NOTION_DB_ARTICLES_BLOG`: Optional database id for the `articles`
   router when using the `blog` source. If set, the `articles` endpoints can
   read/write from this database using the blog adapter. See the "Articles"
@@ -141,7 +170,6 @@ Note on HTTP methods:
 - Use POST when a structured JSON body is required (e.g., filters/sorts for
   listing; content payload for update).
 
-<!-- Ping endpoint removed in favor of router-based health check. Use /api/health. -->
 ### List Articles (paginated)
 
 - **Endpoint**: `POST /api/list-articles`
@@ -396,6 +424,11 @@ system).
 ```bash
 bun test
 ```
+
+The project uses Vitest for testing with the following configuration:
+- Test environment: Node.js
+- Test files: `test/**/*.test.ts`
+- Excludes compiled JavaScript and node_modules
 
 ## Deployment
 

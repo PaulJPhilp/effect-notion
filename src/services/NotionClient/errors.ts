@@ -18,8 +18,16 @@ export class InternalServerError extends Data.TaggedError(
   readonly cause: unknown;
 }> {}
 
+export class RequestTimeoutError extends Data.TaggedError(
+  "RequestTimeoutError"
+)<{
+  readonly timeoutMs: number;
+  readonly cause?: unknown;
+}> {}
+
 export type NotionError =
   | InvalidApiKeyError
   | NotFoundError
   | BadRequestError
-  | InternalServerError;
+  | InternalServerError
+  | RequestTimeoutError;

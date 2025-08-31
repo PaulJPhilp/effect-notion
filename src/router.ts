@@ -15,12 +15,17 @@ import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
  * Tests and local servers can run this `app` directly in Effect-land.
  */
 import { Effect } from "effect";
-import { formatParseError } from "./domain/adapters/schema/Errors.js";
 import { AppConfig } from "./config.js";
+import { formatParseError } from "./domain/adapters/schema/Errors.js";
 import { badRequest, internalError, notFound, unauthorized } from "./errors.js";
+import {
+  addRequestIdToHeaders,
+  getRequestId,
+  setCurrentRequestId,
+} from "./http/requestId.js";
 import applyArticlesRoutes from "./router/articles.js";
 import * as ApiSchema from "./schema.js";
-import { NotionService } from "./services/NotionService.js";
+import { NotionService } from "./services/NotionService/service.js";
 import { validateListArticlesRequestAgainstSchema } from "./validation.js";
 
 let apiRouter = HttpRouter.empty.pipe(
@@ -28,6 +33,11 @@ let apiRouter = HttpRouter.empty.pipe(
   HttpRouter.post(
     "/api/list-articles",
     Effect.gen(function* () {
+      // Extract request ID and store in FiberRef for logging context
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
       yield* Effect.logInfo("/api/list-articles: start");
       const body: ApiSchema.ListArticlesRequest =
         yield* HttpServerRequest.schemaBodyJson(
@@ -63,19 +73,32 @@ let apiRouter = HttpRouter.empty.pipe(
         body.startCursor
       );
       yield* Effect.logInfo(
-        `list-articles: success count=${result.results.length}, hasMore=${result.hasMore
+        `list-articles: success count=${result.results.length}, hasMore=${
+          result.hasMore
         }, nextCursor=${String(result.nextCursor)}`
       );
 
+      // Add request ID to response headers
       return yield* HttpServerResponse.schemaJson(
         ApiSchema.ListArticlesResponseSchema
-      )(result);
+      )(result).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
     })
   ),
   // New: expose normalized database schema for clients
   HttpRouter.get(
     "/api/get-database-schema",
     Effect.gen(function* () {
+      // Extract request ID and store in FiberRef for logging context
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
       yield* Effect.logInfo("/api/get-database-schema: start");
       const query = yield* HttpServerRequest.schemaSearchParams(
         ApiSchema.GetDatabaseSchemaRequestSchema
@@ -90,15 +113,28 @@ let apiRouter = HttpRouter.empty.pipe(
         ...schema,
         titleProperty: schema.titlePropertyName,
       } as const;
+
+      // Add request ID to response headers
       return yield* HttpServerResponse.schemaJson(
         ApiSchema.NormalizedDatabaseSchemaSchema
-      )(out);
+      )(out).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
     })
   ),
   // New: get article metadata (properties)
   HttpRouter.get(
     "/api/get-article-metadata",
     Effect.gen(function* () {
+      // Extract request ID and store in FiberRef for logging context
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
       yield* Effect.logInfo("/api/get-article-metadata: start");
       const query = yield* HttpServerRequest.schemaSearchParams(
         ApiSchema.GetArticleMetadataRequestSchema
@@ -110,15 +146,28 @@ let apiRouter = HttpRouter.empty.pipe(
       const meta = yield* notionService.getArticleMetadata(query.pageId);
       // Include id in response payload to match API schema
       const out = { id: query.pageId, ...meta } as const;
+
+      // Add request ID to response headers
       return yield* HttpServerResponse.schemaJson(
         ApiSchema.GetArticleMetadataResponseSchema
-      )(out);
+      )(out).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
     })
   ),
   // New: router-based health check (no adapter bypass)
   HttpRouter.get(
     "/api/health",
     Effect.gen(function* () {
+      // Extract request ID and store in FiberRef for logging context
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
       const cfg = yield* AppConfig;
       const hasApiKey = Boolean(
         cfg.notionApiKey && cfg.notionApiKey.length > 0
@@ -133,12 +182,22 @@ let apiRouter = HttpRouter.empty.pipe(
         notionOk: undefined,
         error: null,
       } as const;
-      return yield* HttpServerResponse.json(body, { status: ok ? 200 : 503 });
+
+      // Add request ID to response headers
+      return yield* HttpServerResponse.json(body, {
+        status: ok ? 200 : 503,
+        headers: addRequestIdToHeaders({}, requestId),
+      });
     })
   ),
   HttpRouter.get(
     "/api/get-article-content",
     Effect.gen(function* () {
+      // Extract request ID and store in FiberRef for logging context
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
       yield* Effect.logInfo("/api/get-article-content: start");
       const query = yield* HttpServerRequest.schemaSearchParams(
         ApiSchema.GetArticleContentRequestSchema
@@ -150,14 +209,26 @@ let apiRouter = HttpRouter.empty.pipe(
         `/api/get-article-content: contentLength=${content.length}`
       );
 
+      // Add request ID to response headers
       return yield* HttpServerResponse.schemaJson(
         ApiSchema.GetArticleContentResponseSchema
-      )({ content });
+      )({ content }).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
     })
   ),
   HttpRouter.post(
     "/api/update-article-content",
     Effect.gen(function* () {
+      // Extract request ID and store in FiberRef for logging context
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
       yield* Effect.logInfo("/api/update-article-content: start");
       const body: ApiSchema.UpdateArticleContentRequest =
         yield* HttpServerRequest.schemaBodyJson(
@@ -171,8 +242,11 @@ let apiRouter = HttpRouter.empty.pipe(
       yield* notionService.updateArticleContent(body.pageId, body.content);
       yield* Effect.logInfo("/api/update-article-content: success");
 
-      // On success, return a 204 No Content response
-      return yield* HttpServerResponse.empty({ status: 204 });
+      // On success, return a 204 No Content response with request ID header
+      return yield* HttpServerResponse.empty({
+        status: 204,
+        headers: addRequestIdToHeaders({}, requestId),
+      });
     })
   ),
   // Fallback: ensure unmatched routes do not raise RouteNotFound
@@ -187,22 +261,26 @@ let apiRouter = HttpRouter.empty.pipe(
 // Compose feature routers
 apiRouter = applyArticlesRoutes(apiRouter);
 
+// Add metrics routes
+import { applySimpleMetricsRoutes } from "./router/simpleMetrics.js";
+apiRouter = applySimpleMetricsRoutes(apiRouter);
+
 // --- Full App with Error Handling ---
 const routerWithErrors = apiRouter.pipe(
   HttpRouter.catchTags({
     // Bad requests / schema parse
-    RequestError: (e) =>
+    RequestError: (e: unknown) =>
       Effect.gen(function* () {
         yield* Effect.logWarning(`catchTags: RequestError ${String(e)}`);
         return yield* badRequest({ detail: e });
       }),
-    ParseError: (e) =>
+    ParseError: (e: unknown) =>
       Effect.gen(function* () {
         const pretty = formatParseError(e);
         yield* Effect.logWarning(`catchTags: ParseError ${pretty}`);
         return yield* badRequest({ detail: pretty });
       }),
-    BadRequestError: (e) =>
+    BadRequestError: (e: unknown) =>
       Effect.gen(function* () {
         yield* Effect.logWarning(`catchTags: BadRequestError ${String(e)}`);
         return yield* badRequest({ detail: e });
@@ -217,12 +295,12 @@ const routerWithErrors = apiRouter.pipe(
         yield* Effect.logWarning("catchTags: NotFoundError");
         return yield* notFound();
       }),
-    InternalServerError: (e) =>
+    InternalServerError: (e: unknown) =>
       Effect.gen(function* () {
         yield* Effect.logError("catchTags: InternalServerError");
         return yield* internalError(e);
       }),
-    HttpBodyError: (e) =>
+    HttpBodyError: (e: unknown) =>
       Effect.gen(function* () {
         yield* Effect.logError(`catchTags: HttpBodyError ${String(e)}`);
         return yield* internalError(e);

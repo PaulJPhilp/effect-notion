@@ -1,7 +1,9 @@
 // src/NotionAccessors.ts
 import { Option } from "effect";
-import type { NormalizedDatabaseSchema } from "./NotionSchema.js";
-import type { PageListResponse } from "./NotionSchema.js";
+import type {
+  NormalizedDatabaseSchema,
+  PageListResponse,
+} from "./NotionSchema.js";
 
 // Define the Page type based on the schema
 export type Page = PageListResponse["results"][number];
@@ -18,26 +20,44 @@ export type NotionProperty = {
   status?: { name?: string } | null;
   people?: ReadonlyArray<{ id: string }> | null;
   relation?: ReadonlyArray<{ id: string }> | null;
-  files?: ReadonlyArray<{ file?: { url?: string }; external?: { url?: string } }> | null;
-  formula?: { type?: string; string?: string | null; number?: number | null; boolean?: boolean | null; date?: { start: string; end: string | null } | null } | null;
-  rollup?: { type?: string; number?: number | null; date?: { start: string; end: string | null } | null; array?: ReadonlyArray<unknown> | null } | null;
+  files?: ReadonlyArray<{
+    file?: { url?: string };
+    external?: { url?: string };
+  }> | null;
+  formula?: {
+    type?: string;
+    string?: string | null;
+    number?: number | null;
+    boolean?: boolean | null;
+    date?: { start: string; end: string | null } | null;
+  } | null;
+  rollup?: {
+    type?: string;
+    number?: number | null;
+    date?: { start: string; end: string | null } | null;
+    array?: ReadonlyArray<unknown> | null;
+  } | null;
 } & Record<string, unknown>;
 
 export const hasTitleArray = (
-  prop: unknown,
+  prop: unknown
 ): prop is { title: ReadonlyArray<{ plain_text: string }> } =>
-  !!prop && typeof prop === "object" &&
-  "title" in prop && Array.isArray((prop as Record<string, unknown>).title);
+  !!prop &&
+  typeof prop === "object" &&
+  "title" in prop &&
+  Array.isArray((prop as Record<string, unknown>).title);
 
 export const hasRichTextArray = (
-  prop: unknown,
+  prop: unknown
 ): prop is { rich_text: ReadonlyArray<{ plain_text: string }> } =>
-  !!prop && typeof prop === "object" &&
-  "rich_text" in prop && Array.isArray((prop as Record<string, unknown>).rich_text);
+  !!prop &&
+  typeof prop === "object" &&
+  "rich_text" in prop &&
+  Array.isArray((prop as Record<string, unknown>).rich_text);
 
 export const getRichText = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): string | null => {
   const prop = page.properties[propertyName];
   if (!prop || typeof prop !== "object") return null;
@@ -45,7 +65,7 @@ export const getRichText = (
   if (hasTitleArray(prop)) {
     return prop.title.map((t) => t.plain_text).join("");
   }
-  
+
   if (hasRichTextArray(prop)) {
     return prop.rich_text.map((t) => t.plain_text).join("");
   }
@@ -55,25 +75,25 @@ export const getRichText = (
 
 export const getRichTextOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<string> => {
   const v = getRichText(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
 };
 
-export const getSelect = (
-  page: Page,
-  propertyName: string,
-): string | null => {
+export const getSelect = (page: Page, propertyName: string): string | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
-  const sel = (p as NotionProperty)?.select as { name?: string } | null | undefined;
+  const sel = (p as NotionProperty)?.select as
+    | { name?: string }
+    | null
+    | undefined;
   return sel?.name ?? null;
 };
 
 export const getSelectOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<string> => {
   const v = getSelect(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -81,7 +101,7 @@ export const getSelectOpt = (
 
 export const getDate = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): { start: string; end: string | null; timezone?: string } | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
@@ -90,21 +110,22 @@ export const getDate = (
     | null
     | undefined;
   if (!d) return null;
-  return { start: d.start, end: d.end ?? null, timezone: d.time_zone };
+  return {
+    start: d.start,
+    end: d.end ?? null,
+    ...(d.time_zone !== undefined ? { timezone: d.time_zone } : {}),
+  };
 };
 
 export const getDateOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<{ start: string; end: string | null; timezone?: string }> => {
   const v = getDate(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
 };
 
-export const getNumber = (
-  page: Page,
-  propertyName: string,
-): number | null => {
+export const getNumber = (page: Page, propertyName: string): number | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
   const n = (p as NotionProperty)?.number as number | null | undefined;
@@ -113,7 +134,7 @@ export const getNumber = (
 
 export const getNumberOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<number> => {
   const v = getNumber(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -121,7 +142,7 @@ export const getNumberOpt = (
 
 export const getMultiSelect = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
@@ -135,7 +156,7 @@ export const getMultiSelect = (
 
 export const getMultiSelectOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<ReadonlyArray<string>> => {
   const v = getMultiSelect(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -143,7 +164,7 @@ export const getMultiSelectOpt = (
 
 export const getCheckbox = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): boolean | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
@@ -153,16 +174,13 @@ export const getCheckbox = (
 
 export const getCheckboxOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<boolean> => {
   const v = getCheckbox(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
 };
 
-export const getUrl = (
-  page: Page,
-  propertyName: string,
-): string | null => {
+export const getUrl = (page: Page, propertyName: string): string | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
   const u = (p as NotionProperty)?.url as string | null | undefined;
@@ -171,25 +189,25 @@ export const getUrl = (
 
 export const getUrlOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<string> => {
   const v = getUrl(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
 };
 
-export const getStatus = (
-  page: Page,
-  propertyName: string,
-): string | null => {
+export const getStatus = (page: Page, propertyName: string): string | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
-  const s = (p as NotionProperty)?.status as { name?: string } | null | undefined;
+  const s = (p as NotionProperty)?.status as
+    | { name?: string }
+    | null
+    | undefined;
   return s?.name ?? null;
 };
 
 export const getStatusOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<string> => {
   const v = getStatus(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -197,18 +215,21 @@ export const getStatusOpt = (
 
 export const getPeopleIds = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
-  const arr = (p as NotionProperty)?.people as ReadonlyArray<{ id: string }> | null | undefined;
+  const arr = (p as NotionProperty)?.people as
+    | ReadonlyArray<{ id: string }>
+    | null
+    | undefined;
   if (!arr || arr.length === 0) return null;
   return arr.map((x) => x.id);
 };
 
 export const getPeopleIdsOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<ReadonlyArray<string>> => {
   const v = getPeopleIds(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -216,18 +237,21 @@ export const getPeopleIdsOpt = (
 
 export const getRelationIds = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
-  const arr = (p as NotionProperty)?.relation as ReadonlyArray<{ id: string }> | null | undefined;
+  const arr = (p as NotionProperty)?.relation as
+    | ReadonlyArray<{ id: string }>
+    | null
+    | undefined;
   if (!arr || arr.length === 0) return null;
   return arr.map((x) => x.id);
 };
 
 export const getRelationIdsOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<ReadonlyArray<string>> => {
   const v = getRelationIds(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -235,23 +259,22 @@ export const getRelationIdsOpt = (
 
 export const getFileUrls = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
-  
+
   // Type guard to check if object has file property
-  const hasFile = (obj: any): obj is { file?: { url?: string } } => 
+  const hasFile = (obj: any): obj is { file?: { url?: string } } =>
     obj && typeof obj === "object" && "file" in obj;
-  
+
   // Type guard to check if object has external property
-  const hasExternal = (obj: any): obj is { external?: { url?: string } } => 
+  const hasExternal = (obj: any): obj is { external?: { url?: string } } =>
     obj && typeof obj === "object" && "external" in obj;
 
   const arr = (p as NotionProperty)?.files as
     | ReadonlyArray<
-        | { file?: { url?: string } }
-        | { external?: { url?: string } }
+        { file?: { url?: string } } | { external?: { url?: string } }
       >
     | null
     | undefined;
@@ -271,7 +294,7 @@ export const getFileUrls = (
 
 export const getFileUrlsOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<ReadonlyArray<string>> => {
   const v = getFileUrls(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -285,7 +308,7 @@ export type FormulaValue =
 
 export const getFormula = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): FormulaValue | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
@@ -302,9 +325,7 @@ export const getFormula = (
   if (!f || typeof f.type !== "string") return null;
   switch (f.type) {
     case "string":
-      return f.string != null
-        ? { kind: "string", value: f.string }
-        : null;
+      return f.string != null ? { kind: "string", value: f.string } : null;
     case "number":
       return typeof f.number === "number"
         ? { kind: "number", value: f.number }
@@ -324,7 +345,7 @@ export const getFormula = (
 
 export const getFormulaOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<FormulaValue> => {
   const v = getFormula(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -337,7 +358,7 @@ export type RollupValue =
 
 export const getRollup = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): RollupValue | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") return null;
@@ -361,9 +382,7 @@ export const getRollup = (
         ? { kind: "date", value: { start: r.date.start, end: r.date.end } }
         : null;
     case "array":
-      return Array.isArray(r.array)
-        ? { kind: "array", value: r.array }
-        : null;
+      return Array.isArray(r.array) ? { kind: "array", value: r.array } : null;
     default:
       return null;
   }
@@ -371,7 +390,7 @@ export const getRollup = (
 
 export const getRollupOpt = (
   page: Page,
-  propertyName: string,
+  propertyName: string
 ): Option.Option<RollupValue> => {
   const v = getRollup(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -400,20 +419,23 @@ export type PropertyValue =
 export const getPropertyFromPage = (
   page: Page,
   schema: NormalizedDatabaseSchema,
-  propertyName: string,
+  propertyName: string
 ): PropertyValue => {
   const propSchema = schema.properties.find((p) => p.name === propertyName);
   if (!propSchema) {
-    throw new Error(`Property ${propertyName} not found in schema`);
+    // Unknown property in schema: return a passthrough value to avoid throwing
+    return {
+      type: "unknown",
+      value: page?.properties?.[propertyName] as NotionProperty,
+    };
   }
 
   const t = propSchema.type;
   switch (t) {
     case "title": {
       const p = page?.properties?.[propertyName];
-      const v = hasTitleArray(p) && p.title[0]
-        ? p.title[0].plain_text
-        : "Untitled";
+      const v =
+        hasTitleArray(p) && p.title[0] ? p.title[0].plain_text : "Untitled";
       return { type: "title", value: v };
     }
     case "rich_text": {
@@ -448,19 +470,23 @@ export const getPropertyFromPage = (
     case "rollup":
       return { type: "rollup", value: getRollup(page, propertyName) };
     default:
-      return { type: t, value: page?.properties?.[propertyName] as NotionProperty };
+      return {
+        type: t,
+        value: page?.properties?.[propertyName] as NotionProperty,
+      };
   }
 };
 
 export const getTitleFromPage = (
   page: Page,
   schema: NormalizedDatabaseSchema,
-  overrideTitleName?: string,
+  overrideTitleName?: string
 ): string => {
   const name = schema.titlePropertyName ?? overrideTitleName;
   if (!name) return "Untitled";
   const p = page?.properties?.[name];
   if (hasTitleArray(p) && p.title[0]) return p.title[0].plain_text;
-  if (hasRichTextArray(p) && p.rich_text[0]) return p.rich_text.map((t) => t.plain_text).join("");
+  if (hasRichTextArray(p) && p.rich_text[0])
+    return p.rich_text.map((t) => t.plain_text).join("");
   return "Untitled";
 };

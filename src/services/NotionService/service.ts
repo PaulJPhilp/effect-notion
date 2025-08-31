@@ -1,8 +1,6 @@
 import { Chunk, Effect, Option, Ref, Schedule } from "effect";
 import { getTitleFromPage } from "../../NotionAccessors.js";
-import type {
-  NormalizedDatabaseSchema,
-} from "../../NotionSchema.js";
+import type { NormalizedDatabaseSchema } from "../../NotionSchema.js";
 import {
   AppConfig,
   AppConfigProviderLive,
@@ -47,7 +45,9 @@ export class NotionService extends Effect.Service<NotionService>()(
             .pipe(
               Effect.tapError((e) =>
                 Effect.logWarning(
-                  `retrieveDatabase failed for databaseId=${databaseId}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
+                  `retrieveDatabase failed for databaseId=${databaseId}; errorTag=${
+                    (e as NotionError)?._tag ?? "Unknown"
+                  }`
                 )
               ),
               Effect.mapError((e) =>
@@ -99,7 +99,9 @@ export class NotionService extends Effect.Service<NotionService>()(
           Effect.catchAll(getNormalizedSchema(databaseId), (err) =>
             Effect.gen(function* () {
               yield* Effect.logWarning(
-                `getNormalizedSchema failed for databaseId=${databaseId}; falling back to stale cache if available; errorTag=${(err as NotionError)?._tag ?? "Unknown"}`
+                `getNormalizedSchema failed for databaseId=${databaseId}; falling back to stale cache if available; errorTag=${
+                  (err as NotionError)?._tag ?? "Unknown"
+                }`
               );
               const cached = yield* getCachedSchema(databaseId);
               if (Option.isSome(cached)) {
@@ -111,15 +113,19 @@ export class NotionService extends Effect.Service<NotionService>()(
             Effect.flatMap((schema) =>
               notionClient
                 .queryDatabase(notionApiKey, databaseId, {
-                  filter,
-                  sorts,
-                  start_cursor: startCursor,
-                  page_size: pageSize,
+                  ...(filter !== undefined ? { filter } : {}),
+                  ...(sorts !== undefined ? { sorts } : {}),
+                  ...(startCursor !== undefined
+                    ? { start_cursor: startCursor }
+                    : {}),
+                  ...(pageSize !== undefined ? { page_size: pageSize } : {}),
                 })
                 .pipe(
                   Effect.tapError((e) =>
                     Effect.logWarning(
-                      `queryDatabase failed for databaseId=${databaseId}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
+                      `queryDatabase failed for databaseId=${databaseId}; errorTag=${
+                        (e as NotionError)?._tag ?? "Unknown"
+                      }`
                     )
                   ),
                   Effect.mapError((e) =>
@@ -160,15 +166,19 @@ export class NotionService extends Effect.Service<NotionService>()(
         ) =>
           notionClient
             .queryDatabase(notionApiKey, databaseId, {
-              filter,
-              sorts,
-              start_cursor: startCursor,
-              page_size: pageSize,
+              ...(filter !== undefined ? { filter } : {}),
+              ...(sorts !== undefined ? { sorts } : {}),
+              ...(startCursor !== undefined
+                ? { start_cursor: startCursor }
+                : {}),
+              ...(pageSize !== undefined ? { page_size: pageSize } : {}),
             })
             .pipe(
               Effect.tapError((e) =>
                 Effect.logWarning(
-                  `queryDatabase failed for databaseId=${databaseId}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
+                  `queryDatabase failed for databaseId=${databaseId}; errorTag=${
+                    (e as NotionError)?._tag ?? "Unknown"
+                  }`
                 )
               ),
               Effect.mapError((e) =>
@@ -206,15 +216,19 @@ export class NotionService extends Effect.Service<NotionService>()(
         ) =>
           notionClient
             .queryDatabase(notionApiKey, databaseId, {
-              filter,
-              sorts,
-              start_cursor: startCursor,
-              page_size: pageSize,
+              ...(filter !== undefined ? { filter } : {}),
+              ...(sorts !== undefined ? { sorts } : {}),
+              ...(startCursor !== undefined
+                ? { start_cursor: startCursor }
+                : {}),
+              ...(pageSize !== undefined ? { page_size: pageSize } : {}),
             })
             .pipe(
               Effect.tapError((e) =>
                 Effect.logWarning(
-                  `queryDatabase failed for databaseId=${databaseId}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
+                  `queryDatabase failed for databaseId=${databaseId}; errorTag=${
+                    (e as NotionError)?._tag ?? "Unknown"
+                  }`
                 )
               ),
               Effect.mapError((e) =>
@@ -229,13 +243,13 @@ export class NotionService extends Effect.Service<NotionService>()(
               }))
             ),
 
-        getArticleMetadata: (
-          pageId: string
-        ) =>
+        getArticleMetadata: (pageId: string) =>
           notionClient.retrievePage(notionApiKey, pageId).pipe(
             Effect.tapError((e) =>
               Effect.logWarning(
-                `retrievePage failed for pageId=${pageId}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
+                `retrievePage failed for pageId=${pageId}; errorTag=${
+                  (e as NotionError)?._tag ?? "Unknown"
+                }`
               )
             ),
             Effect.mapError((e) =>
@@ -243,19 +257,21 @@ export class NotionService extends Effect.Service<NotionService>()(
                 ? (e as NotionError)
                 : new InternalServerError({ cause: e })
             ),
-            Effect.map((page: any) => ({ properties: page.properties as unknown }))
+            Effect.map((page: any) => ({
+              properties: page.properties as unknown,
+            }))
           ),
 
-        getArticleContent: (
-          pageId: string
-        ) =>
+        getArticleContent: (pageId: string) =>
           getAllPaginatedResults((cursor) =>
             notionClient
               .retrieveBlockChildren(notionApiKey, pageId, cursor)
               .pipe(
                 Effect.tapError((e) =>
                   Effect.logWarning(
-                    `retrieveBlockChildren failed for pageId=${pageId}; cursor=${cursor ?? "<none>"}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
+                    `retrieveBlockChildren failed for pageId=${pageId}; cursor=${
+                      cursor ?? "<none>"
+                    }; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
                   )
                 ),
                 Effect.mapError((e) =>
@@ -266,10 +282,7 @@ export class NotionService extends Effect.Service<NotionService>()(
               )
           ).pipe(Effect.map(notionBlocksToMarkdown)),
 
-        updateArticleContent: (
-          pageId: string,
-          content: string
-        ) =>
+        updateArticleContent: (pageId: string, content: string) =>
           Effect.gen(function* () {
             const existingBlocks = yield* getAllPaginatedResults((cursor) =>
               notionClient
@@ -277,7 +290,9 @@ export class NotionService extends Effect.Service<NotionService>()(
                 .pipe(
                   Effect.tapError((e: NotionError) =>
                     Effect.logWarning(
-                      `retrieveBlockChildren failed during update for pageId=${pageId}; cursor=${cursor ?? "<none>"}; errorTag=${e._tag ?? "Unknown"}`
+                      `retrieveBlockChildren failed during update for pageId=${pageId}; cursor=${
+                        cursor ?? "<none>"
+                      }; errorTag=${e._tag ?? "Unknown"}`
                     )
                   ),
                   Effect.mapError((e) =>
@@ -287,20 +302,25 @@ export class NotionService extends Effect.Service<NotionService>()(
                   )
                 )
             );
-            const blockIds = (existingBlocks as ReadonlyArray<{ id: string }>).map((b) => b.id);
+            const blockIds = (
+              existingBlocks as ReadonlyArray<{ id: string }>
+            ).map((b) => b.id);
 
+            // Use bounded concurrency to respect Notion API rate limits
             yield* Effect.forEach(
               blockIds,
               (id) =>
                 notionClient.deleteBlock(notionApiKey, id).pipe(
                   Effect.tapError((e) =>
                     Effect.logWarning(
-                      `deleteBlock failed for pageId=${pageId}; blockId=${id}; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
+                      `deleteBlock failed for pageId=${pageId}; blockId=${id}; errorTag=${
+                        (e as NotionError)?._tag ?? "Unknown"
+                      }`
                     )
                   ),
                   Effect.catchAll(() => Effect.void)
                 ),
-              { concurrency: "unbounded" }
+              { concurrency: 5 }
             );
 
             const newBlocks = markdownToNotionBlocks(content);
