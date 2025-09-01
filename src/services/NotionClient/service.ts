@@ -121,6 +121,25 @@ export class NotionClient extends Effect.Service<NotionClient>()(
                 notionHttpTimeoutMs
               )
           ),
+
+        createDatabase: (apiKey, parentPageId, title, properties) =>
+          performRequest(
+            HttpClientRequest.post("https://api.notion.com/v1/databases").pipe(
+              HttpClientRequest.bodyUnsafeJson({
+                parent: { page_id: parentPageId },
+                title: [
+                  {
+                    type: "text",
+                    text: { content: title },
+                  },
+                ],
+                properties,
+              }),
+              withNotionHeaders(apiKey)
+            ),
+            NotionSchema.DatabaseSchema,
+            notionHttpTimeoutMs
+          ),
       };
 
       return svc;

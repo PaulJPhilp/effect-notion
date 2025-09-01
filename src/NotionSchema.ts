@@ -2,9 +2,7 @@
 import * as S from "effect/Schema";
 
 // --- Base Schemas ---
-const RichTextSchema = S.Array(
-  S.Struct({ plain_text: S.String }),
-);
+const RichTextSchema = S.Array(S.Struct({ plain_text: S.String }));
 
 // --- Page Object Schema ---
 // Notion page properties can be of many different types. For decoding purposes
@@ -65,10 +63,9 @@ export const BlockSchema = S.Union(
   BulletedListItemSchema,
   CodeBlockSchema,
   // Keep Unknown last to prioritize specific literals during decoding
-  UnknownBlockSchema,
+  UnknownBlockSchema
 );
 export type Block = S.Schema.Type<typeof BlockSchema>;
-
 
 // --- API List Response Schemas ---
 // These generic schemas wrap the list responses from Notion's paginated APIs.
@@ -92,19 +89,25 @@ export type BlockListResponse = S.Schema.Type<typeof BlockListResponseSchema>;
 const ParagraphInputSchema = S.Struct({
   object: S.Literal("block"),
   type: S.Literal("paragraph"),
-  paragraph: S.Struct({ rich_text: S.Array(S.Struct({ text: S.Struct({ content: S.String }) })) }),
+  paragraph: S.Struct({
+    rich_text: S.Array(S.Struct({ text: S.Struct({ content: S.String }) })),
+  }),
 });
 
 const Heading2InputSchema = S.Struct({
   object: S.Literal("block"),
   type: S.Literal("heading_2"),
-  heading_2: S.Struct({ rich_text: S.Array(S.Struct({ text: S.Struct({ content: S.String }) })) }),
+  heading_2: S.Struct({
+    rich_text: S.Array(S.Struct({ text: S.Struct({ content: S.String }) })),
+  }),
 });
 
 const BulletedListItemInputSchema = S.Struct({
   object: S.Literal("block"),
   type: S.Literal("bulleted_list_item"),
-  bulleted_list_item: S.Struct({ rich_text: S.Array(S.Struct({ text: S.Struct({ content: S.String }) })) }),
+  bulleted_list_item: S.Struct({
+    rich_text: S.Array(S.Struct({ text: S.Struct({ content: S.String }) })),
+  }),
 });
 
 const CodeInputSchema = S.Struct({
@@ -120,7 +123,7 @@ export const NotionBlockInputSchema = S.Union(
   ParagraphInputSchema,
   Heading2InputSchema,
   BulletedListItemInputSchema,
-  CodeInputSchema,
+  CodeInputSchema
 );
 
 export type NotionBlockInput = S.Schema.Type<typeof NotionBlockInputSchema>;
@@ -135,7 +138,9 @@ export const DatabaseSchema = S.Struct({
   // field at decode time, leaving the rest as Unknown for later per-type logic.
   properties: S.Record({
     key: S.String,
-    value: S.Struct({ type: S.String }),
+    // Preserve full Notion property configuration. We still rely on runtime
+    // checks (in normalization) to read `type` and other fields.
+    value: S.Unknown,
   }),
 });
 export type Database = S.Schema.Type<typeof DatabaseSchema>;

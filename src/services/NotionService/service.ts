@@ -10,6 +10,7 @@ import type { NotionError } from "../NotionClient/errors.js";
 import { InternalServerError } from "../NotionClient/errors.js";
 import { NotionClient } from "../NotionClient/service.js";
 import {
+  buildNotionPropertiesFromSimpleSpec,
   getAllPaginatedResults,
   markdownToNotionBlocks,
   normalizeDatabase,
@@ -34,8 +35,8 @@ export class NotionService extends Effect.Service<NotionService>()(
       ): Effect.Effect<NormalizedDatabaseSchema, NotionError> =>
         Effect.gen(function* () {
           const now = Date.now();
-          const cache = yield* Ref.get(schemaCacheRef);
-          const existing = cache.get(databaseId);
+          const cache: Map<string, CacheEntry> = yield* Ref.get(schemaCacheRef);
+          const existing: CacheEntry | undefined = cache.get(databaseId);
           if (existing && now - existing.fetchedAt < SCHEMA_TTL_MS) {
             return existing.schema;
           }
@@ -57,7 +58,7 @@ export class NotionService extends Effect.Service<NotionService>()(
               )
             );
 
-          const normalized = normalizeDatabase(db as any);
+          const normalized: NormalizedDatabaseSchema = normalizeDatabase(db);
 
           if (
             existing &&
@@ -133,14 +134,14 @@ export class NotionService extends Effect.Service<NotionService>()(
                       ? (e as NotionError)
                       : new InternalServerError({ cause: e })
                   ),
-                  Effect.map((response: any) => {
+                  Effect.map((response) => {
                     const titleKey: string | undefined =
                       titlePropertyName ??
                       resolveTitleOverride(databaseId) ??
                       schema.titlePropertyName ??
                       undefined;
 
-                    const results = response.results.map((page: any) => ({
+                    const results = response.results.map((page) => ({
                       id: page.id,
                       title: getTitleFromPage(page, schema, titleKey),
                     }));
@@ -186,14 +187,14 @@ export class NotionService extends Effect.Service<NotionService>()(
                   ? (e as NotionError)
                   : new InternalServerError({ cause: e })
               ),
-              Effect.map((response: any) => {
+              Effect.map((response) => {
                 const titleKey: string | undefined =
                   titlePropertyName ??
                   resolveTitleOverride(databaseId) ??
                   schema.titlePropertyName ??
                   undefined;
 
-                const results = response.results.map((page: any) => ({
+                const results = response.results.map((page) => ({
                   id: page.id,
                   title: getTitleFromPage(page, schema, titleKey),
                 }));
@@ -236,12 +237,149 @@ export class NotionService extends Effect.Service<NotionService>()(
                   ? (e as NotionError)
                   : new InternalServerError({ cause: e })
               ),
-              Effect.map((response: any) => ({
-                pages: response.results as ReadonlyArray<any>,
+              Effect.map((response) => ({
+                pages: response.results as ReadonlyArray<unknown>,
                 hasMore: response.has_more,
                 nextCursor: response.next_cursor,
               }))
             ),
+
+        // Dynamic raw operations (no adapters, Notion-native shapes)
+        dynamicQuery: (args: {
+          databaseId: string;
+          filter?: unknown;
+          sorts?: unknown;
+          pageSize?: number;
+          startCursor?: string;
+        }) =>
+          notionClient
+            .queryDatabase(notionApiKey, args.databaseId, {
+              ...(args.filter !== undefined ? { filter: args.filter } : {}),
+              ...(args.sorts !== undefined ? { sorts: args.sorts } : {}),
+              ...(args.startCursor !== undefined
+                ? { start_cursor: args.startCursor }
+                : {}),
+              ...(args.pageSize !== undefined
+                ? { page_size: args.pageSize }
+                : {}),
+            })
+            .pipe(
+              Effect.tapError((e) =>
+                Effect.logWarning(
+                  `dynamicQuery failed for databaseId=${
+                    args.databaseId
+                  }; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
+                )
+              ),
+              Effect.mapError((e) =>
+                typeof (e as { _tag?: unknown })._tag === "string"
+                  ? (e as NotionError)
+                  : new InternalServerError({ cause: e })
+              ),
+              Effect.map((resp) => ({
+                pages: resp.results as ReadonlyArray<unknown>,
+                hasMore: resp.has_more,
+                nextCursor: resp.next_cursor,
+              }))
+            ),
+
+        dynamicGetPage: (pageId: string) =>
+          notionClient.retrievePage(notionApiKey, pageId).pipe(
+            Effect.tapError((e) =>
+              Effect.logWarning(
+                `dynamicGetPage failed pageId=${pageId}; errorTag=${
+                  (e as NotionError)?._tag ?? "Unknown"
+                }`
+              )
+            ),
+            Effect.mapError((e) =>
+              typeof (e as { _tag?: unknown })._tag === "string"
+                ? (e as NotionError)
+                : new InternalServerError({ cause: e })
+            )
+          ),
+
+        dynamicCreatePage: (args: {
+          databaseId: string;
+          properties: Record<string, unknown>;
+        }) =>
+          notionClient
+            .createPage(notionApiKey, args.databaseId, args.properties)
+            .pipe(
+              Effect.tapError((e) =>
+                Effect.logWarning(
+                  `dynamicCreatePage failed db=${args.databaseId}; errorTag=${
+                    (e as NotionError)?._tag ?? "Unknown"
+                  }`
+                )
+              ),
+              Effect.mapError((e) =>
+                typeof (e as { _tag?: unknown })._tag === "string"
+                  ? (e as NotionError)
+                  : new InternalServerError({ cause: e })
+              )
+            ),
+
+        dynamicUpdatePage: (args: {
+          pageId: string;
+          properties: Record<string, unknown>;
+        }) =>
+          notionClient
+            .updatePage(notionApiKey, args.pageId, {
+              properties: args.properties,
+            })
+            .pipe(
+              Effect.tapError((e) =>
+                Effect.logWarning(
+                  `dynamicUpdatePage failed pageId=${args.pageId}; errorTag=${
+                    (e as NotionError)?._tag ?? "Unknown"
+                  }`
+                )
+              ),
+              Effect.mapError((e) =>
+                typeof (e as { _tag?: unknown })._tag === "string"
+                  ? (e as NotionError)
+                  : new InternalServerError({ cause: e })
+              )
+            ),
+
+        // Testing/utility: create a database with a simple spec
+        createDatabaseWithSchema: (args: {
+          parentPageId: string;
+          title: string;
+          spec: Record<
+            string,
+            {
+              type:
+                | "title"
+                | "rich_text"
+                | "number"
+                | "checkbox"
+                | "date"
+                | "url"
+                | "email"
+                | "files"
+                | "people"
+                | "relation"
+                | "select"
+                | "multi_select"
+                | "status"
+                | "formula";
+              options?: ReadonlyArray<string>;
+              formulaType?: "number" | "string" | "boolean" | "date";
+            }
+          >;
+        }) =>
+          Effect.gen(function* () {
+            const properties = buildNotionPropertiesFromSimpleSpec(args.spec);
+            const db = yield* notionClient.createDatabase(
+              notionApiKey,
+              args.parentPageId,
+              args.title,
+              properties
+            );
+            return normalizeDatabase(db);
+          }),
 
         getArticleMetadata: (pageId: string) =>
           notionClient.retrievePage(notionApiKey, pageId).pipe(
@@ -257,7 +395,7 @@ export class NotionService extends Effect.Service<NotionService>()(
                 ? (e as NotionError)
                 : new InternalServerError({ cause: e })
             ),
-            Effect.map((page: any) => ({
+            Effect.map((page) => ({
               properties: page.properties as unknown,
             }))
           ),

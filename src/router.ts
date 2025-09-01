@@ -15,6 +15,7 @@ import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
  * Tests and local servers can run this `app` directly in Effect-land.
  */
 import { Effect } from "effect";
+import type { NormalizedDatabaseSchema } from "./NotionSchema.js";
 import { AppConfig } from "./config.js";
 import { formatParseError } from "./domain/adapters/schema/Errors.js";
 import { badRequest, internalError, notFound, unauthorized } from "./errors.js";
@@ -25,6 +26,20 @@ import {
 } from "./http/requestId.js";
 import applyArticlesRoutes from "./router/articles.js";
 import * as ApiSchema from "./schema.js";
+import {
+  DbCreateDatabaseRequestSchema,
+  DbCreateDatabaseResponseSchema,
+  DbCreatePageRequestSchema,
+  DbCreatePageResponseSchema,
+  DbGetPageRequestSchema,
+  DbGetPageResponseSchema,
+  DbGetSchemaRequestSchema,
+  DbGetSchemaResponseSchema,
+  DbQueryRequestSchema,
+  DbQueryResponseSchema,
+  DbUpdatePageRequestSchema,
+  DbUpdatePageResponseSchema,
+} from "./schema.js";
 import { NotionService } from "./services/NotionService/service.js";
 import { validateListArticlesRequestAgainstSchema } from "./validation.js";
 
@@ -199,12 +214,15 @@ let apiRouter = HttpRouter.empty.pipe(
       yield* setCurrentRequestId(requestId);
 
       yield* Effect.logInfo("/api/get-article-content: start");
-      const query = yield* HttpServerRequest.schemaSearchParams(
-        ApiSchema.GetArticleContentRequestSchema
-      );
+      const query: ApiSchema.GetArticleContentRequest =
+        yield* HttpServerRequest.schemaSearchParams(
+          ApiSchema.GetArticleContentRequestSchema
+        );
       yield* Effect.logInfo(`/api/get-article-content: pageId=${query.pageId}`);
       const notionService = yield* NotionService;
-      const content = yield* notionService.getArticleContent(query.pageId);
+      const content: string = yield* notionService.getArticleContent(
+        query.pageId
+      );
       yield* Effect.logInfo(
         `/api/get-article-content: contentLength=${content.length}`
       );
@@ -213,6 +231,116 @@ let apiRouter = HttpRouter.empty.pipe(
       return yield* HttpServerResponse.schemaJson(
         ApiSchema.GetArticleContentResponseSchema
       )({ content }).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
+    })
+  ),
+  // -----------------------------------
+  // Dynamic DB endpoints (Notion-native)
+  // -----------------------------------
+  HttpRouter.post(
+    "/api/db/query",
+    Effect.gen(function* () {
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
+      const body = yield* HttpServerRequest.schemaBodyJson(
+        DbQueryRequestSchema
+      );
+      const notionService = yield* NotionService;
+      const out = yield* notionService.dynamicQuery({
+        databaseId: body.databaseId,
+        ...(body.filter !== undefined ? { filter: body.filter } : {}),
+        ...(body.sorts !== undefined ? { sorts: body.sorts } : {}),
+        ...(body.pageSize !== undefined ? { pageSize: body.pageSize } : {}),
+        ...(body.startCursor !== undefined
+          ? { startCursor: body.startCursor }
+          : {}),
+      });
+
+      return yield* HttpServerResponse.schemaJson(DbQueryResponseSchema)(
+        out
+      ).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
+    })
+  ),
+  HttpRouter.get(
+    "/api/db/get",
+    Effect.gen(function* () {
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
+      const query = yield* HttpServerRequest.schemaSearchParams(
+        DbGetPageRequestSchema
+      );
+      const notionService = yield* NotionService;
+      const page = yield* notionService.dynamicGetPage(query.pageId);
+      return yield* HttpServerResponse.schemaJson(DbGetPageResponseSchema)(
+        page
+      ).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
+    })
+  ),
+  HttpRouter.post(
+    "/api/db/create",
+    Effect.gen(function* () {
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
+      const body = yield* HttpServerRequest.schemaBodyJson(
+        DbCreatePageRequestSchema
+      );
+      const notionService = yield* NotionService;
+      const page = yield* notionService.dynamicCreatePage({
+        databaseId: body.databaseId,
+        properties: body.properties,
+      });
+      return yield* HttpServerResponse.schemaJson(DbCreatePageResponseSchema)(
+        page
+      ).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
+    })
+  ),
+  HttpRouter.post(
+    "/api/db/update",
+    Effect.gen(function* () {
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
+      const body = yield* HttpServerRequest.schemaBodyJson(
+        DbUpdatePageRequestSchema
+      );
+      const notionService = yield* NotionService;
+      const page = yield* notionService.dynamicUpdatePage({
+        pageId: body.pageId,
+        properties: body.properties,
+      });
+      return yield* HttpServerResponse.schemaJson(DbUpdatePageResponseSchema)(
+        page
+      ).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
             addRequestIdToHeaders(response.headers, requestId)
@@ -247,6 +375,97 @@ let apiRouter = HttpRouter.empty.pipe(
         status: 204,
         headers: addRequestIdToHeaders({}, requestId),
       });
+    })
+  ),
+  HttpRouter.post(
+    "/api/db/create-database",
+    Effect.gen(function* () {
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
+      yield* Effect.logInfo("/api/db/create-database: start");
+      const body = yield* HttpServerRequest.schemaBodyJson(
+        DbCreateDatabaseRequestSchema,
+        {
+          onExcessProperty: "error",
+        }
+      );
+      yield* Effect.logInfo(
+        `/api/db/create-database: parentPageId=${body.parentPageId}, title=${body.title}`
+      );
+
+      const notionService = yield* NotionService;
+      const result: NormalizedDatabaseSchema =
+        yield* notionService.createDatabaseWithSchema({
+          parentPageId: body.parentPageId,
+          title: body.title,
+          spec: body.spec as Record<
+            string,
+            {
+              type:
+                | "number"
+                | "title"
+                | "rich_text"
+                | "checkbox"
+                | "date"
+                | "url"
+                | "email"
+                | "files"
+                | "people"
+                | "relation"
+                | "select"
+                | "multi_select"
+                | "status"
+                | "formula";
+              options?: readonly string[];
+              formulaType?: "string" | "number" | "boolean" | "date";
+            }
+          >,
+        });
+
+      return yield* HttpServerResponse.schemaJson(
+        DbCreateDatabaseResponseSchema
+      )({
+        databaseId: result.databaseId,
+        properties: result.properties,
+      }).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
+    })
+  ),
+  HttpRouter.get(
+    "/api/db/get-schema",
+    Effect.gen(function* () {
+      const req = yield* HttpServerRequest.HttpServerRequest;
+      const requestId = getRequestId(req.headers);
+      yield* setCurrentRequestId(requestId);
+
+      yield* Effect.logInfo("/api/db/get-schema: start");
+      const query = yield* HttpServerRequest.schemaSearchParams(
+        DbGetSchemaRequestSchema
+      );
+      yield* Effect.logInfo(
+        `/api/db/get-schema: databaseId=${query.databaseId}`
+      );
+
+      const notionService = yield* NotionService;
+      const schema = yield* notionService.getDatabaseSchema(query.databaseId);
+
+      return yield* HttpServerResponse.schemaJson(DbGetSchemaResponseSchema)({
+        schema: schema,
+        properties: schema.properties,
+      }).pipe(
+        Effect.map((response) =>
+          HttpServerResponse.setHeaders(
+            addRequestIdToHeaders(response.headers, requestId)
+          )(response)
+        )
+      );
     })
   ),
   // Fallback: ensure unmatched routes do not raise RouteNotFound
