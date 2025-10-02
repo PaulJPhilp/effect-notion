@@ -1,11 +1,21 @@
 import * as HttpRouter from "@effect/platform/HttpRouter";
 import * as HttpServerRequest from "@effect/platform/HttpServerRequest";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
-import { Effect } from "effect";
-import { globalMetrics } from "../metrics/simple.js";
-import { getCurrentRequestId, setCurrentRequestId, getRequestId, addRequestIdToHeaders } from "../http/requestId.js";
+import { Effect, Metric } from "effect";
+import {
+  addRequestIdToHeaders,
+  getRequestId,
+  setCurrentRequestId,
+} from "../http/requestId.js";
 
+/**
+ * Applies metrics routes to the router.
+ * 
+ * Provides a `/api/metrics` endpoint that returns Effect metrics
+ * in a simple text format.
+ */
 export const applySimpleMetricsRoutes = <
+  // biome-ignore lint/suspicious/noExplicitAny: generic router type
   T extends { pipe: (...fns: Array<(self: any) => any>) => any }
 >(
   router: T
@@ -14,30 +24,35 @@ export const applySimpleMetricsRoutes = <
     HttpRouter.get(
       "/api/metrics",
       Effect.gen(function* () {
-        // Extract request ID and store in FiberRef for logging context
+        // Extract request ID and store in FiberRef for logging
         const req = yield* HttpServerRequest.HttpServerRequest;
         const requestId = getRequestId(req.headers);
         yield* setCurrentRequestId(requestId);
 
-        // Get metrics from the simple metrics service
-        const metrics = globalMetrics.getMetrics();
+        // Get Effect metrics snapshot
+        const snapshot = yield* Metric.snapshot;
         
-        // Convert to Prometheus format
-        const prometheusMetrics = Object.entries(metrics)
-          .map(([name, value]) => {
-            if (typeof value === 'number') {
-              return `${name} ${value}`;
-            }
-            return `${name} ${JSON.stringify(value)}`;
+        // Convert to simple text format
+        // Note: Effect metrics are more structured than this simple
+        // format. For production, consider using a proper metrics
+        // exporter (Prometheus, OpenTelemetry, etc.)
+        const metricsText = snapshot
+          .map((pair) => {
+            const name = pair.metricKey.name;
+            const value = JSON.stringify(pair.metricState);
+            return `${name}: ${value}`;
           })
-          .join('\n');
+          .join("\n");
 
         // Add request ID to response headers
-        return yield* HttpServerResponse.text(prometheusMetrics, {
+        return yield* HttpServerResponse.text(metricsText, {
           status: 200,
-          headers: addRequestIdToHeaders({
-            "content-type": "text/plain; version=0.0.4; charset=utf-8",
-          }, requestId),
+          headers: addRequestIdToHeaders(
+            {
+              "content-type": "text/plain; charset=utf-8",
+            },
+            requestId
+          ),
         });
       })
     )

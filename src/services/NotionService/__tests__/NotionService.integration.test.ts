@@ -2,7 +2,10 @@
 import { describe, it, expect } from "vitest";
 import { Effect, Layer } from "effect";
 import { NotionService } from "../../../NotionService.js";
-import { AppConfigProviderLive } from "../../../config.js";
+import {
+  AppConfigProviderLive,
+  LogicalFieldOverridesService,
+} from "../../../config.js";
 import { NotionClient } from "../../../NotionClient.js";
 import * as dotenv from "dotenv";
 
@@ -14,7 +17,11 @@ const { NOTION_PAGE_ID } = process.env;
 // The main test layer that provides all dependencies
 const TestLayer = Layer.provide(
   NotionService.Default,
-  Layer.merge(NotionClient.Default, AppConfigProviderLive)
+  Layer.mergeAll(
+    NotionClient.Default,
+    AppConfigProviderLive,
+    LogicalFieldOverridesService.Live
+  )
 );
 
 // Conditionally skip the entire test suite if credentials are not provided

@@ -49,13 +49,14 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
 
             type NotionPage = S.Schema.Type<typeof NotionSchema.PageSchema>;
 
-            const results: ReadonlyArray<BaseEntity> = resp.pages.map(
-              (page: NotionPage) =>
-                cfg.adapter.fromNotionPage({
-                  source,
-                  databaseId: cfg.databaseId,
-                  page,
-                })
+            const results: ReadonlyArray<BaseEntity> = (
+              resp.pages as ReadonlyArray<NotionPage>
+            ).map((page) =>
+              cfg.adapter.fromNotionPage({
+                source,
+                databaseId: cfg.databaseId,
+                page,
+              })
             );
 
             return {
@@ -65,7 +66,16 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
                 resp.nextCursor as Option.Option<string>
               ),
             };
-          }),
+          }).pipe(
+            Effect.withSpan("ArticlesRepository.list", {
+              attributes: {
+                source: params.source,
+                pageSize: params.pageSize,
+                hasFilter: !!params.filter,
+                hasSort: !!params.sort,
+              },
+            })
+          ),
 
         get: (
           args: { source: string; pageId: string }
@@ -84,6 +94,12 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
                   databaseId: cfg.databaseId,
                   page,
                 });
+              }),
+              Effect.withSpan("ArticlesRepository.get", {
+                attributes: {
+                  source: args.source,
+                  pageId: args.pageId,
+                },
               })
             ),
 
@@ -110,7 +126,13 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
               databaseId: cfg.databaseId,
               page,
             });
-          }),
+          }).pipe(
+            Effect.withSpan("ArticlesRepository.create", {
+              attributes: {
+                source: args.source,
+              },
+            })
+          ),
 
         update: (
           args: { source: string; pageId: string; patch: Partial<BaseEntity> }
@@ -137,7 +159,14 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
               databaseId: cfg.databaseId,
               page,
             });
-          }),
+          }).pipe(
+            Effect.withSpan("ArticlesRepository.update", {
+              attributes: {
+                source: args.source,
+                pageId: args.pageId,
+              },
+            })
+          ),
 
         delete: (
           args: { source: string; pageId: string }
@@ -149,7 +178,13 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
                 `ArticlesRepository.delete failed source=${args.source} page=${args.pageId}`
               ),
               Effect.mapError(mapUnknownToNotionError),
-              Effect.asVoid
+              Effect.asVoid,
+              Effect.withSpan("ArticlesRepository.delete", {
+                attributes: {
+                  source: args.source,
+                  pageId: args.pageId,
+                },
+              })
             ),
       };
 

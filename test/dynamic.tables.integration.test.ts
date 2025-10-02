@@ -2,11 +2,11 @@ import { NodeContext } from "@effect/platform-node";
 import * as HttpApp from "@effect/platform/HttpApp";
 import * as dotenv from "dotenv";
 import { Layer, Logger } from "effect";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { NotionClient } from "../src/NotionClient.js";
-import { NotionService } from "../src/NotionService.js";
-import { AppConfigProviderLive } from "../src/config.js";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { app } from "../src/router.js";
+import { AppConfigProviderLive } from "../src/config.js";
+import { RequestIdService } from "../src/http/requestId.js";
+import { NotionService } from "../src/services/NotionService/service.js";
 import type { SimpleDbSpec } from "../src/services/NotionService/helpers.js";
 
 // Load environment variables from .env file
@@ -18,7 +18,7 @@ const TestLayer = Layer.mergeAll(
   Logger.json,
   AppConfigProviderLive,
   NodeContext.layer,
-  NotionClient.Default,
+  RequestIdService.Live,
   NotionService.Default
 );
 

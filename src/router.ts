@@ -363,7 +363,9 @@ let apiRouter = HttpRouter.empty.pipe(
           ApiSchema.UpdateArticleContentRequestSchema
         );
       yield* Effect.logInfo(
-        `/api/update-article-content: pageId=${body.pageId}, contentLength=${body.content.length}`
+        `/api/update-article-content: pageId=${
+          body.pageId
+        }, contentLength=${body.content.length}`
       );
 
       const notionService = yield* NotionService;
@@ -392,7 +394,9 @@ let apiRouter = HttpRouter.empty.pipe(
         }
       );
       yield* Effect.logInfo(
-        `/api/db/create-database: parentPageId=${body.parentPageId}, title=${body.title}`
+        `/api/db/create-database: parentPageId=${
+          body.parentPageId
+        }, title=${body.title}`
       );
 
       const notionService = yield* NotionService;

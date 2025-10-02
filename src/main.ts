@@ -10,6 +10,7 @@ import {
   ValidatedAppConfig,
   buildCorsOptions,
 } from "./config.js";
+import { RequestIdService } from "./http/requestId.js";
 import { app } from "./router.js";
 import { NotionService } from "./services/NotionService/service.js";
 
@@ -64,6 +65,7 @@ const AppLayers = Layer.mergeAll(
   Logger.json,
   LogLevelLayer,
   AppConfigProviderLive,
+  RequestIdService.Live,
   NotionService.Default
 );
 

@@ -1,11 +1,15 @@
 import type * as HttpClient from "@effect/platform/HttpClient";
 import * as HttpClientRequest from "@effect/platform/HttpClientRequest";
 import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
-import { Cause, Effect } from "effect";
+import {
+  Cause,
+  Clock,
+  Effect,
+  Metric,
+  MetricBoundaries,
+  Schedule,
+} from "effect";
 import type * as S from "effect/Schema";
-import { globalMetrics } from "../../metrics/simple.js";
-import { SimpleCircuitBreaker } from "../../resilience/simple.js";
-import { SimpleRetryStrategy } from "../../resilience/simpleRetry.js";
 import {
   BadRequestError,
   InternalServerError,
@@ -92,22 +96,60 @@ function handleUnitResponseStatus(
   return Effect.succeed(undefined);
 }
 
-// Global instances for resilience and metrics
-const notionCircuitBreaker = new SimpleCircuitBreaker({
-  failureThreshold: 5,
-  recoveryTimeout: 30000, // 30 seconds
-  successThreshold: 3,
-});
+/**
+ * Effect-native metrics for Notion API requests.
+ * 
+ * These metrics are fiber-safe and integrate with Effect's
+ * metric system for proper observability.
+ */
+const notionRequestCounter = Metric.counter("notion_api_requests_total");
+const notionSuccessCounter = Metric.counter("notion_api_success_total");
+const notionErrorCounter = Metric.counter("notion_api_errors_total");
+const notionDurationHistogram = Metric.histogram(
+  "notion_api_duration_ms",
+  MetricBoundaries.exponential({ start: 10, factor: 2, count: 10 })
+);
 
-const notionRetryStrategy = new SimpleRetryStrategy({
-  maxAttempts: 3,
-  baseDelay: 1000, // 1 second
-  maxDelay: 10000, // 10 seconds
-  backoffMultiplier: 2,
-  jitterFactor: 0.1,
-  retryableErrors: ["timeout", "network", "service_unavailable"],
-});
+/**
+ * Retry schedule for Notion API requests.
+ * 
+ * Uses exponential backoff with jitter to prevent thundering herd.
+ * Configuration: 3 total attempts (1 initial + 2 retries)
+ * - Base delay: 1 second
+ * - Fallback: 500ms spacing
+ * - Jitter: randomized to spread load
+ */
+const notionRetrySchedule = Schedule.exponential("1 second").pipe(
+  Schedule.either(Schedule.spaced("500 millis")),
+  Schedule.compose(Schedule.recurs(2)), // 2 retries = 3 total attempts
+  Schedule.jittered
+);
 
+/**
+ * Determines if a Notion API error should trigger a retry.
+ * 
+ * Retryable errors:
+ * - RequestTimeoutError: Network timeouts
+ * - InternalServerError: 5xx responses from Notion
+ * 
+ * Non-retryable errors (fail fast):
+ * - InvalidApiKeyError: 401 authentication failures
+ * - NotFoundError: 404 resource not found
+ * - BadRequestError: 400/422 validation errors
+ */
+const isRetryableError = (error: NotionError): boolean => {
+  return (
+    error._tag === "RequestTimeoutError" ||
+    error._tag === "InternalServerError"
+  );
+};
+
+/**
+ * Adds required Notion API headers to an HTTP request.
+ * 
+ * @param apiKey - Notion integration API key
+ * @returns Request transformer that adds authentication and version headers
+ */
 export const withNotionHeaders = (apiKey: string) =>
   HttpClientRequest.setHeaders({
     Authorization: `Bearer ${apiKey}`,
@@ -115,99 +157,71 @@ export const withNotionHeaders = (apiKey: string) =>
     "Content-Type": "application/json",
   });
 
+/**
+ * Creates a function to perform Notion API requests with Effect-native
+ * retry, timeout, and metrics.
+ * 
+ * Features:
+ * - Automatic retry with exponential backoff for transient failures
+ * - Configurable timeout with proper cancellation
+ * - Fiber-safe metrics collection
+ * - Type-safe response parsing with Schema validation
+ * - Deterministic time tracking using Clock service
+ * 
+ * @param client - Effect HTTP client instance
+ * @returns Request executor function
+ */
 export const createPerformRequest =
   (client: HttpClient.HttpClient) =>
   <A, I>(
     request: HttpClientRequest.HttpClientRequest,
     schema: S.Schema<A, I, never>,
     timeoutMs = 10_000,
-    operation = "unknown"
+    _operation = "unknown"
   ): Effect.Effect<A, NotionError> =>
     Effect.gen(function* () {
-      const startTime = Date.now();
+      const startTime = yield* Clock.currentTimeMillis;
 
       // Increment request counter
-      globalMetrics.incrementCounter("notion_api_requests_total", 1);
-      globalMetrics.incrementCounter(
-        `notion_api_requests_${operation}_total`,
-        1
+      yield* Metric.increment(notionRequestCounter);
+
+      // Core request effect with timeout and error handling
+      const requestEffect = client.execute(request).pipe(
+        Effect.timeout(timeoutMs),
+        Effect.mapError((cause) => {
+          if (Cause.isTimeoutException(cause)) {
+            return new RequestTimeoutError({ timeoutMs });
+          }
+          return new InternalServerError({ cause });
+        }),
+        Effect.flatMap((response) => handleResponseStatus(response, schema))
       );
 
-      try {
-        // Execute with circuit breaker and retry strategy
-        const result: A = yield* Effect.promise(() =>
-          notionCircuitBreaker.execute(async () =>
-            notionRetryStrategy.execute(async () => {
-              // Convert Effect to Promise for the resilience layer
-              const response = await Effect.runPromise(
-                client.execute(request).pipe(
-                  Effect.timeout(timeoutMs),
-                  Effect.mapError((cause) => {
-                    // Check if it's a timeout error and convert to our custom timeout error
-                    if (Cause.isTimeoutException(cause)) {
-                      return new RequestTimeoutError({ timeoutMs });
-                    }
-                    return new InternalServerError({ cause });
-                  }),
-                  Effect.flatMap((response) =>
-                    handleResponseStatus(response, schema)
-                  )
-                )
-              );
-              return response;
-            })
-          )
-        );
+      // Apply retry policy for retryable errors
+      const result = yield* requestEffect.pipe(
+        Effect.retry({
+          schedule: notionRetrySchedule,
+          while: isRetryableError,
+        }),
+        Effect.tapError((error) =>
+          Effect.gen(function* () {
+            yield* Metric.increment(notionErrorCounter);
+            yield* Effect.logWarning(
+              `Notion API request failed: ${error._tag}`
+            );
+          })
+        ),
+        Effect.tap(() =>
+          Effect.gen(function* () {
+            const endTime = yield* Clock.currentTimeMillis;
+            const duration = endTime - startTime;
+            yield* Metric.increment(notionSuccessCounter);
+            yield* Metric.update(notionDurationHistogram, duration);
+          })
+        )
+      );
 
-        // Record successful API call
-        const duration = Date.now() - startTime;
-        globalMetrics.recordDuration("notion_api_duration_ms", duration);
-        globalMetrics.recordDuration(
-          `notion_api_${operation}_duration_ms`,
-          duration
-        );
-        globalMetrics.incrementCounter("notion_api_success_total", 1);
-        globalMetrics.incrementCounter(
-          `notion_api_${operation}_success_total`,
-          1
-        );
-
-        // Update circuit breaker state
-        globalMetrics.setGauge(
-          "notion_circuit_breaker_state",
-          notionCircuitBreaker.getState() === "closed" ? 1 : 0
-        );
-
-        return result;
-      } catch (error) {
-        // Record failed API call
-        const duration = Date.now() - startTime;
-        const errorType =
-          error instanceof Error ? error.constructor.name : "UnknownError";
-
-        globalMetrics.recordDuration("notion_api_error_duration_ms", duration);
-        globalMetrics.recordDuration(
-          `notion_api_${operation}_error_duration_ms`,
-          duration
-        );
-        globalMetrics.incrementCounter("notion_api_errors_total", 1);
-        globalMetrics.incrementCounter(
-          `notion_api_${operation}_errors_total`,
-          1
-        );
-        globalMetrics.incrementCounter(
-          `notion_api_errors_${errorType}_total`,
-          1
-        );
-
-        // Update circuit breaker state
-        globalMetrics.setGauge(
-          "notion_circuit_breaker_state",
-          notionCircuitBreaker.getState() === "closed" ? 1 : 0
-        );
-
-        throw error;
-      }
+      return result;
     });
 
 export const createPerformRequestUnit =
@@ -215,93 +229,49 @@ export const createPerformRequestUnit =
   (
     request: HttpClientRequest.HttpClientRequest,
     timeoutMs = 10_000,
-    operation = "unknown"
+    _operation = "unknown"
   ): Effect.Effect<void, NotionError> =>
     Effect.gen(function* () {
-      const startTime = Date.now();
+      const startTime = yield* Clock.currentTimeMillis;
 
       // Increment request counter
-      globalMetrics.incrementCounter("notion_api_requests_total", 1);
-      globalMetrics.incrementCounter(
-        `notion_api_requests_${operation}_total`,
-        1
+      yield* Metric.increment(notionRequestCounter);
+
+      // Core request effect with timeout and error handling
+      const requestEffect = client.execute(request).pipe(
+        Effect.timeout(timeoutMs),
+        Effect.mapError((cause) => {
+          if (Cause.isTimeoutException(cause)) {
+            return new RequestTimeoutError({ timeoutMs });
+          }
+          return new InternalServerError({ cause });
+        }),
+        Effect.flatMap((response) => handleUnitResponseStatus(response))
       );
 
-      try {
-        // Execute with circuit breaker and retry strategy
-        yield* Effect.promise(() =>
-          notionCircuitBreaker.execute(async () =>
-            notionRetryStrategy.execute(async () => {
-              // Convert Effect to Promise for the resilience layer
-              const response = await Effect.runPromise(
-                client.execute(request).pipe(
-                  Effect.timeout(timeoutMs),
-                  Effect.mapError((cause) => {
-                    // Check if it's a timeout error and convert to our custom timeout error
-                    if (Cause.isTimeoutException(cause)) {
-                      return new RequestTimeoutError({ timeoutMs });
-                    }
-                    return new InternalServerError({ cause });
-                  }),
-                  Effect.flatMap((response) =>
-                    handleUnitResponseStatus(response)
-                  )
-                )
-              );
-              return response;
-            })
-          )
-        );
-
-        // Record successful API call
-        const duration = Date.now() - startTime;
-        globalMetrics.recordDuration("notion_api_duration_ms", duration);
-        globalMetrics.recordDuration(
-          `notion_api_${operation}_duration_ms`,
-          duration
-        );
-        globalMetrics.incrementCounter("notion_api_success_total", 1);
-        globalMetrics.incrementCounter(
-          `notion_api_${operation}_success_total`,
-          1
-        );
-
-        // Update circuit breaker state
-        globalMetrics.setGauge(
-          "notion_circuit_breaker_state",
-          notionCircuitBreaker.getState() === "closed" ? 1 : 0
-        );
-
-        return undefined;
-      } catch (error) {
-        // Record failed API call
-        const duration = Date.now() - startTime;
-        const errorType =
-          error instanceof Error ? error.constructor.name : "UnknownError";
-
-        globalMetrics.recordDuration("notion_api_error_duration_ms", duration);
-        globalMetrics.recordDuration(
-          `notion_api_${operation}_error_duration_ms`,
-          duration
-        );
-        globalMetrics.incrementCounter("notion_api_errors_total", 1);
-        globalMetrics.incrementCounter(
-          `notion_api_${operation}_errors_total`,
-          1
-        );
-        globalMetrics.incrementCounter(
-          `notion_api_errors_${errorType}_total`,
-          1
-        );
-
-        // Update circuit breaker state
-        globalMetrics.setGauge(
-          "notion_circuit_breaker_state",
-          notionCircuitBreaker.getState() === "closed" ? 1 : 0
-        );
-
-        throw error;
-      }
+      // Apply retry policy for retryable errors
+      yield* requestEffect.pipe(
+        Effect.retry({
+          schedule: notionRetrySchedule,
+          while: isRetryableError,
+        }),
+        Effect.tapError((error) =>
+          Effect.gen(function* () {
+            yield* Metric.increment(notionErrorCounter);
+            yield* Effect.logWarning(
+              `Notion API request failed: ${error._tag}`
+            );
+          })
+        ),
+        Effect.tap(() =>
+          Effect.gen(function* () {
+            const endTime = yield* Clock.currentTimeMillis;
+            const duration = endTime - startTime;
+            yield* Metric.increment(notionSuccessCounter);
+            yield* Metric.update(notionDurationHistogram, duration);
+          })
+        )
+      );
     });
 
 // Test-only helper mirroring status mapping

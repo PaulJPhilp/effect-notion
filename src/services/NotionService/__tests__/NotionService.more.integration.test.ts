@@ -1,19 +1,24 @@
 // test/NotionService.more.integration.test.ts
 import { describe, it, expect } from "vitest";
 import { Effect, Layer } from "effect";
-import * as dotenv from "dotenv";
 import { NotionService } from "../../../NotionService.js";
-import { AppConfigProviderLive } from "../../../config.js";
+import {
+  AppConfigProviderLive,
+  LogicalFieldOverridesService,
+} from "../../../config.js";
 import { NotionClient } from "../../../NotionClient.js";
-
-// Load env
+import * as dotenv from "dotenv";
 dotenv.config();
 
 const { NOTION_DATABASE_ID, NOTION_PAGE_ID, NOTION_STRESS_TEST } = process.env;
 
 const TestLayer = Layer.provide(
   NotionService.Default,
-  Layer.merge(NotionClient.Default, AppConfigProviderLive)
+  Layer.mergeAll(
+    NotionClient.Default,
+    AppConfigProviderLive,
+    LogicalFieldOverridesService.Live
+  )
 );
 
 // Run only when creds exist

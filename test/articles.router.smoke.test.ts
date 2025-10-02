@@ -8,6 +8,7 @@ import { app } from "../src/router.js"
 import { ArticlesRepository } from "../src/services/ArticlesRepository.js"
 import type { BaseEntity } from "../src/domain/logical/Common.js"
 import { AppConfigProviderLive } from "../src/config.js"
+import { RequestIdService } from "../src/http/requestId.js"
 import { NotionClient } from "../src/NotionClient.js"
 import { NotionService } from "../src/NotionService.js"
 
@@ -47,6 +48,7 @@ const TestLayer = Layer.mergeAll(
   Logger.json,
   NodeContext.layer,
   AppConfigProviderLive,
+  RequestIdService.Live,
   NotionClient.Default,
   NotionService.Default,
   StubLayer

@@ -4,6 +4,7 @@ import { Layer, Logger } from "effect";
 import { describe, expect, it } from "vitest";
 import { app } from "../src/router.js";
 import { AppConfigProviderLive } from "../src/config.js";
+import { RequestIdService } from "../src/http/requestId.js";
 import { NotionClient } from "../src/NotionClient.js";
 import { NotionService } from "../src/NotionService.js";
 import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
@@ -14,6 +15,7 @@ const TestLayer = Layer.mergeAll(
   Logger.json,
   AppConfigProviderLive,
   NodeContext.layer,
+  RequestIdService.Live,
   ArticlesRepository.Default,
   NotionClient.Default,
   NotionService.Default,

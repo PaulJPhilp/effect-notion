@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { Effect, Layer } from "effect";
 import { NotionService } from "../../../NotionService.js";
-import { AppConfigProviderLive } from "../../../config.js";
+import {
+  AppConfigProviderLive,
+  LogicalFieldOverridesService,
+} from "../../../config.js";
 import { NotionClient } from "../../../NotionClient.js";
 import * as dotenv from "dotenv";
 
@@ -12,7 +15,11 @@ const { NOTION_DATABASE_ID } = process.env;
 
 const TestLayer = Layer.provide(
   NotionService.Default,
-  Layer.merge(NotionClient.Default, AppConfigProviderLive)
+  Layer.mergeAll(
+    NotionClient.Default,
+    AppConfigProviderLive,
+    LogicalFieldOverridesService.Live
+  )
 );
 
 describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(

@@ -1,9 +1,10 @@
-import { Chunk, Effect, Option, Ref, Schedule } from "effect";
+import { Chunk, Clock, Effect, Option, Ref, Schedule } from "effect";
 import { getTitleFromPage } from "../../NotionAccessors.js";
 import type { NormalizedDatabaseSchema } from "../../NotionSchema.js";
 import {
   AppConfig,
   AppConfigProviderLive,
+  LogicalFieldOverridesService,
   resolveTitleOverride,
 } from "../../config.js";
 import type { NotionError } from "../NotionClient/errors.js";
@@ -21,10 +22,15 @@ export class NotionService extends Effect.Service<NotionService>()(
   "NotionService",
   {
     accessors: true,
-    dependencies: [NotionClient.Default, AppConfigProviderLive],
+    dependencies: [
+      NotionClient.Default,
+      AppConfigProviderLive,
+      LogicalFieldOverridesService.Live,
+    ],
     effect: Effect.gen(function* () {
       const notionClient = yield* NotionClient;
       const { notionApiKey } = yield* AppConfig;
+      const fieldOverrides = yield* LogicalFieldOverridesService;
 
       type CacheEntry = { schema: NormalizedDatabaseSchema; fetchedAt: number };
       const schemaCacheRef = yield* Ref.make(new Map<string, CacheEntry>());
@@ -34,7 +40,7 @@ export class NotionService extends Effect.Service<NotionService>()(
         databaseId: string
       ): Effect.Effect<NormalizedDatabaseSchema, NotionError> =>
         Effect.gen(function* () {
-          const now = Date.now();
+          const now = yield* Clock.currentTimeMillis;
           const cache: Map<string, CacheEntry> = yield* Ref.get(schemaCacheRef);
           const existing: CacheEntry | undefined = cache.get(databaseId);
           if (existing && now - existing.fetchedAt < SCHEMA_TTL_MS) {
@@ -46,15 +52,17 @@ export class NotionService extends Effect.Service<NotionService>()(
             .pipe(
               Effect.tapError((e) =>
                 Effect.logWarning(
-                  `retrieveDatabase failed for databaseId=${databaseId}; errorTag=${
-                    (e as NotionError)?._tag ?? "Unknown"
-                  }`
+                  `retrieveDatabase failed for databaseId=${
+                    databaseId
+                  }; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
                 )
               ),
-              Effect.mapError((e) =>
-                typeof (e as { _tag?: unknown })._tag === "string"
-                  ? (e as NotionError)
-                  : new InternalServerError({ cause: e })
+              Effect.catchAll((e) =>
+                Effect.fail(
+                  typeof (e as { _tag?: unknown })._tag === "string"
+                    ? (e as NotionError)
+                    : new InternalServerError({ cause: e })
+                )
               )
             );
 
@@ -66,7 +74,9 @@ export class NotionService extends Effect.Service<NotionService>()(
               existing.schema.lastEditedTime !== normalized.lastEditedTime)
           ) {
             yield* Effect.logInfo(
-              `Schema changed for database ${databaseId}; lastEditedTime=${normalized.lastEditedTime}`
+              `Schema changed for database ${
+                databaseId
+              }; lastEditedTime=${normalized.lastEditedTime}`
             );
           }
           cache.set(databaseId, { schema: normalized, fetchedAt: now });
@@ -100,7 +110,9 @@ export class NotionService extends Effect.Service<NotionService>()(
           Effect.catchAll(getNormalizedSchema(databaseId), (err) =>
             Effect.gen(function* () {
               yield* Effect.logWarning(
-                `getNormalizedSchema failed for databaseId=${databaseId}; falling back to stale cache if available; errorTag=${
+                `getNormalizedSchema failed for databaseId=${
+                  databaseId
+                }; falling back to stale cache if available; errorTag=${
                   (err as NotionError)?._tag ?? "Unknown"
                 }`
               );
@@ -135,9 +147,11 @@ export class NotionService extends Effect.Service<NotionService>()(
                       : new InternalServerError({ cause: e })
                   ),
                   Effect.map((response) => {
+                    const dbOverrides = fieldOverrides.overrides.get(databaseId);
+                    const titleOverride = dbOverrides?.["title"];
                     const titleKey: string | undefined =
                       titlePropertyName ??
-                      resolveTitleOverride(databaseId) ??
+                      titleOverride ??
                       schema.titlePropertyName ??
                       undefined;
 
@@ -182,15 +196,19 @@ export class NotionService extends Effect.Service<NotionService>()(
                   }`
                 )
               ),
-              Effect.mapError((e) =>
-                typeof (e as { _tag?: unknown })._tag === "string"
-                  ? (e as NotionError)
-                  : new InternalServerError({ cause: e })
+              Effect.catchAll((e) =>
+                Effect.fail(
+                  typeof (e as { _tag?: unknown })._tag === "string"
+                    ? (e as NotionError)
+                    : new InternalServerError({ cause: e })
+                )
               ),
               Effect.map((response) => {
+                const dbOverrides = fieldOverrides.overrides.get(databaseId);
+                const titleOverride = dbOverrides?.["title"];
                 const titleKey: string | undefined =
                   titlePropertyName ??
-                  resolveTitleOverride(databaseId) ??
+                  titleOverride ??
                   schema.titlePropertyName ??
                   undefined;
 
@@ -232,10 +250,12 @@ export class NotionService extends Effect.Service<NotionService>()(
                   }`
                 )
               ),
-              Effect.mapError((e) =>
-                typeof (e as { _tag?: unknown })._tag === "string"
-                  ? (e as NotionError)
-                  : new InternalServerError({ cause: e })
+              Effect.catchAll((e) =>
+                Effect.fail(
+                  typeof (e as { _tag?: unknown })._tag === "string"
+                    ? (e as NotionError)
+                    : new InternalServerError({ cause: e })
+                )
               ),
               Effect.map((response) => ({
                 pages: response.results as ReadonlyArray<unknown>,
@@ -271,10 +291,12 @@ export class NotionService extends Effect.Service<NotionService>()(
                   }; errorTag=${(e as NotionError)?._tag ?? "Unknown"}`
                 )
               ),
-              Effect.mapError((e) =>
-                typeof (e as { _tag?: unknown })._tag === "string"
-                  ? (e as NotionError)
-                  : new InternalServerError({ cause: e })
+              Effect.catchAll((e) =>
+                Effect.fail(
+                  typeof (e as { _tag?: unknown })._tag === "string"
+                    ? (e as NotionError)
+                    : new InternalServerError({ cause: e })
+                )
               ),
               Effect.map((resp) => ({
                 pages: resp.results as ReadonlyArray<unknown>,
@@ -313,10 +335,12 @@ export class NotionService extends Effect.Service<NotionService>()(
                   }`
                 )
               ),
-              Effect.mapError((e) =>
-                typeof (e as { _tag?: unknown })._tag === "string"
-                  ? (e as NotionError)
-                  : new InternalServerError({ cause: e })
+              Effect.catchAll((e) =>
+                Effect.fail(
+                  typeof (e as { _tag?: unknown })._tag === "string"
+                    ? (e as NotionError)
+                    : new InternalServerError({ cause: e })
+                )
               )
             ),
 
@@ -336,10 +360,12 @@ export class NotionService extends Effect.Service<NotionService>()(
                   }`
                 )
               ),
-              Effect.mapError((e) =>
-                typeof (e as { _tag?: unknown })._tag === "string"
-                  ? (e as NotionError)
-                  : new InternalServerError({ cause: e })
+              Effect.catchAll((e) =>
+                Effect.fail(
+                  typeof (e as { _tag?: unknown })._tag === "string"
+                    ? (e as NotionError)
+                    : new InternalServerError({ cause: e })
+                )
               )
             ),
 

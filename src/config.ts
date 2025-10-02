@@ -2,7 +2,15 @@ import dotenv from "dotenv";
 import * as fs from "node:fs";
 import * as path from "node:path";
 // src/config.ts
-import { Config, ConfigProvider, Data, Effect, Layer, LogLevel } from "effect";
+import {
+  Config,
+  ConfigProvider,
+  Context,
+  Data,
+  Effect,
+  Layer,
+  LogLevel,
+} from "effect";
 
 // Define the schema for our application's configuration
 export type Env = "development" | "test" | "production";
@@ -99,22 +107,82 @@ export function buildCorsOptions(cfg: {
 }
 
 // ----------------------------------------------------------------------------
-// Logical Field Overrides
+// Logical Field Overrides Service
 // ----------------------------------------------------------------------------
-// Allow per-database mapping from app logical fields to Notion property names.
-// Example: map Article.slug -> "Slug" column in a specific database.
-// Usage: add entries like:
-// LogicalFieldOverrides["<db-id>"] = { title: "Name", slug: "Slug" };
-export type LogicalFieldMap = Record<string, string>;
+/**
+ * Service for managing per-database field name overrides.
+ * 
+ * Allows mapping from application logical field names to actual Notion
+ * property names on a per-database basis. This is useful when different
+ * databases use different property names for the same logical concept.
+ * 
+ * Example: Database A uses "Name" for title, Database B uses "Title"
+ */
+export type LogicalFieldMap = Readonly<Record<string, string>>;
 
-export const LogicalFieldOverrides: Record<string, LogicalFieldMap> = {
-  // "<database-id>": { title: "Name", slug: "Slug" },
-};
+export class LogicalFieldOverridesService extends Context.Tag(
+  "LogicalFieldOverridesService"
+)<
+  LogicalFieldOverridesService,
+  {
+    readonly overrides: ReadonlyMap<string, LogicalFieldMap>;
+  }
+>() {
+  /**
+   * Live layer with empty overrides.
+   * 
+   * For production use, provide a custom layer with your database-specific
+   * overrides using `LogicalFieldOverridesService.make()`.
+   */
+  static readonly Live = Layer.succeed(this, {
+    overrides: new Map<string, LogicalFieldMap>(),
+  });
 
+  /**
+   * Creates a layer with specific field overrides.
+   * 
+   * @example
+   * ```typescript
+   * const CustomOverrides = LogicalFieldOverridesService.make({
+   *   "db-id-123": { title: "Name", slug: "Slug" },
+   *   "db-id-456": { title: "Title", slug: "URL" }
+   * });
+   * ```
+   */
+  static make(
+    overrides: Record<string, LogicalFieldMap>
+  ): Layer.Layer<LogicalFieldOverridesService> {
+    return Layer.succeed(this, {
+      overrides: new Map(Object.entries(overrides)),
+    });
+  }
+}
+
+/**
+ * Resolves a logical field name to the actual Notion property name
+ * for a specific database.
+ * 
+ * @param databaseId - The Notion database ID
+ * @param logicalField - The logical field name (e.g., "title", "slug")
+ * @returns Effect that yields the property name or undefined
+ */
 export const resolveLogicalField = (
   databaseId: string,
   logicalField: string
-): string | undefined => LogicalFieldOverrides[databaseId]?.[logicalField];
+): Effect.Effect<string | undefined, never, LogicalFieldOverridesService> =>
+  Effect.gen(function* () {
+    const service = yield* LogicalFieldOverridesService;
+    const dbOverrides = service.overrides.get(databaseId);
+    return dbOverrides?.[logicalField];
+  });
 
-export const resolveTitleOverride = (databaseId: string): string | undefined =>
+/**
+ * Resolves the title field override for a specific database.
+ * 
+ * @param databaseId - The Notion database ID
+ * @returns Effect that yields the title property name or undefined
+ */
+export const resolveTitleOverride = (
+  databaseId: string
+): Effect.Effect<string | undefined, never, LogicalFieldOverridesService> =>
   resolveLogicalField(databaseId, "title");

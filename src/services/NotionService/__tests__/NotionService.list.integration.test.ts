@@ -1,19 +1,24 @@
 import * as dotenv from "dotenv";
 import { Effect, Layer } from "effect";
 // test/NotionService.list.integration.test.ts
-import { describe, expect, it } from "vitest";
-import { NotionClient } from "../../../NotionClient.js";
+import { describe, it, expect } from "vitest";
 import { NotionService } from "../../../NotionService.js";
-import { AppConfigProviderLive } from "../../../config.js";
-
-// Load environment variables from .env file
+import {
+  AppConfigProviderLive,
+  LogicalFieldOverridesService,
+} from "../../../config.js";
+import { NotionClient } from "../../../NotionClient.js";
 dotenv.config();
 
 const { NOTION_DATABASE_ID } = process.env;
 
 const TestLayer = Layer.provide(
   NotionService.Default,
-  Layer.merge(NotionClient.Default, AppConfigProviderLive)
+  Layer.mergeAll(
+    NotionClient.Default,
+    AppConfigProviderLive,
+    LogicalFieldOverridesService.Live
+  )
 );
 
 // Skip when creds are not provided

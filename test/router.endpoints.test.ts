@@ -1,22 +1,23 @@
 import { NodeContext } from "@effect/platform-node";
 import * as HttpApp from "@effect/platform/HttpApp";
+import * as HttpServer from "@effect/platform/HttpServer";
 import { Layer, Logger } from "effect";
 import { describe, expect, it } from "vitest";
+import { AppConfigProviderLive } from "../src/config.js";
+import { RequestIdService } from "../src/http/requestId.js";
 import { NotionClient } from "../src/NotionClient.js";
 import { NotionService } from "../src/NotionService.js";
-import { AppConfigProviderLive } from "../src/config.js";
 import { app } from "../src/router.js";
 
 const TestLayer = Layer.mergeAll(
   Logger.json,
   AppConfigProviderLive,
-  NodeContext.layer,
-  NotionClient.Default,
+  HttpServer.layerContext,
+  RequestIdService.Live,
   NotionService.Default
 );
 
 const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer);
-
 describe("Router Endpoints", () => {
   describe("Health Check", () => {
     it("GET /api/health should return health status", async () => {

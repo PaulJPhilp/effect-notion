@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { NotionClient } from "../src/NotionClient.js";
 import { NotionService } from "../src/NotionService.js";
 import { AppConfigProviderLive } from "../src/config.js";
+import { RequestIdService } from "../src/http/requestId.js";
 import { app } from "../src/router.js";
 
 // Load environment variables from .env file
@@ -18,6 +19,7 @@ const TestLayer = Layer.mergeAll(
   Logger.json,
   AppConfigProviderLive,
   NodeContext.layer,
+  RequestIdService.Live,
   NotionClient.Default,
   NotionService.Default
 );

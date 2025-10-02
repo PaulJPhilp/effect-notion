@@ -1,26 +1,23 @@
-import { NodeContext } from "@effect/platform-node";
 import * as HttpApp from "@effect/platform/HttpApp";
+import * as HttpServer from "@effect/platform/HttpServer";
 import { Layer, Logger } from "effect";
 import { describe, expect, it } from "vitest";
 import { app } from "../src/router.js";
 import { AppConfigProviderLive } from "../src/config.js";
-import { NotionClient } from "../src/NotionClient.js";
-import { NotionService } from "../src/NotionService.js";
-import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
+import { RequestIdService } from "../src/http/requestId.js";
+import { NotionService } from "../src/services/NotionService/service.js";
 
 const { NOTION_API_KEY, NOTION_DB_ARTICLES_BLOG } = process.env;
 
 const TestLayer = Layer.mergeAll(
   Logger.json,
   AppConfigProviderLive,
-  NodeContext.layer,
-  ArticlesRepository.Default,
-  NotionClient.Default,
+  HttpServer.layerContext,
+  RequestIdService.Live,
   NotionService.Default
 );
 
 const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer);
-
 // Live integration tests for Articles router.
 // These tests require a configured Notion integration and database.
 describe.skipIf(!NOTION_API_KEY || !NOTION_DB_ARTICLES_BLOG)(

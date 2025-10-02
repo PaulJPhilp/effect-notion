@@ -9,6 +9,7 @@ import {
   AppConfigProviderLive,
   buildCorsOptions,
 } from "../src/config.js";
+import { RequestIdService } from "../src/http/requestId.js";
 import { app } from "../src/router.js";
 import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
 import { NotionClient } from "../src/services/NotionClient.js";
@@ -22,6 +23,7 @@ const AppLayers = Layer.mergeAll(
   Logger.json,
   LogLevelLayer,
   AppConfigProviderLive,
+  RequestIdService.Live,
   // Provide external service layers so router handlers can access them
   NotionClient.Default,
   NotionService.Default,
