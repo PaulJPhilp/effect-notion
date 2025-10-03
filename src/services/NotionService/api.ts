@@ -53,6 +53,11 @@ export interface NotionServiceApi {
     pageId: string
   ) => Effect.Effect<{ properties: unknown }, NotionError>;
 
+  updateArticleProperties: (
+    pageId: string,
+    properties: Record<string, unknown>
+  ) => Effect.Effect<{ properties: unknown }, NotionError>;
+
   getArticleContent: (
     pageId: string
   ) => Effect.Effect<string, NotionError>;

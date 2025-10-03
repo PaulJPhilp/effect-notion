@@ -50,12 +50,23 @@ const { handler: webHandler } = toWebHandlerLayerWith(AppLayers, {
 // Vercel Node v3 Web API entrypoint: (Request) => Promise<Response>
 export default async function handler(request: Request): Promise<Response> {
   try {
+    // Fast-path for OPTIONS preflight: respond immediately without 
+    // initializing the full Effect runtime
     if (request.method === "OPTIONS") {
-      // Let the CORS middleware handle OPTIONS requests
-      const response = await webHandler(request);
+      const cfg = buildCorsOptions({
+        corsOrigin: "*",
+        corsAllowedMethods: "POST,GET,OPTIONS",
+        corsAllowedHeaders: "Content-Type,Authorization",
+      });
+      
       return new Response(null, {
-        status: response.status,
-        headers: response.headers,
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": cfg.allowedOrigins?.[0] ?? "*",
+          "Access-Control-Allow-Methods": "POST,GET,OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type,Authorization",
+          "Access-Control-Max-Age": "86400",
+        },
       });
     }
 

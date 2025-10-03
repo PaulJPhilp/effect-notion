@@ -426,6 +426,30 @@ export class NotionService extends Effect.Service<NotionService>()(
             }))
           ),
 
+        updateArticleProperties: (
+          pageId: string,
+          properties: Record<string, unknown>
+        ) =>
+          notionClient
+            .updatePage(notionApiKey, pageId, { properties })
+            .pipe(
+              Effect.tapError((e) =>
+                Effect.logWarning(
+                  `updatePage failed for pageId=${pageId}; errorTag=${
+                    (e as NotionError)?._tag ?? "Unknown"
+                  }`
+                )
+              ),
+              Effect.mapError((e) =>
+                typeof (e as { _tag?: unknown })._tag === "string"
+                  ? (e as NotionError)
+                  : new InternalServerError({ cause: e })
+              ),
+              Effect.map((page) => ({
+                properties: page.properties as unknown,
+              }))
+            ),
+
         getArticleContent: (pageId: string) =>
           getAllPaginatedResults((cursor) =>
             notionClient

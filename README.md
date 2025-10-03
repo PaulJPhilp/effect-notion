@@ -30,6 +30,25 @@ Notion API.
 Your frontend talks to this server; the server (holding your
 `NOTION_API_KEY`) talks to Notion.
 
+### Effect-TS Architecture
+
+This project follows Effect-TS best practices throughout:
+
+- **Service Patterns**: All dependencies (NotionClient, NotionService, ArticlesRepository) are modeled as Effect services
+- **Layer-Based DI**: Dependencies are provided via Layers for testability and composability
+- **Immutable State**: No global mutable state; uses FiberRef and Ref for safe concurrent state
+- **Type-Safe Errors**: All errors are tagged with Data.TaggedError for exhaustive handling
+- **Effect Chains**: Pure Effect pipelines with no Promise conversions
+- **Clock Service**: Time operations use Clock for deterministic testing
+- **Metrics & Tracing**: Built-in observability with Effect.Metric and Effect.withSpan
+
+**Key Services:**
+- `RequestIdService` - Request correlation IDs (FiberRef-based)
+- `LogicalFieldOverridesService` - Database field mapping configuration
+- `NotionClient` - Low-level Notion API client with retry
+- `NotionService` - Business logic with schema caching
+- `ArticlesRepository` - High-level CRUD operations with tracing
+
 ### Schema-driven adapters
 
 See `docs/SchemaAdapter.md` for the schema-driven adapter pattern used to
@@ -42,11 +61,12 @@ how to add new field mappings.
 - **Rich Filtering Capabilities**: Dynamically filter Notion database entries using a flexible JSON-based query language.
 - **Logical Field Overrides**: Decouple your application from your Notion schema by mapping Notion's field names to logical names in your code.
 - **Codegen for Type Safety**: Generate TypeScript types and Effect Schema from your live Notion database to ensure end-to-end type safety.
-- **Built with Effect**: Leverages the Effect library for a highly performant, concurrent, and error-resilient server.
-- **Ready to Deploy**: Includes configurations for easy deployment to services like Vercel.
+- **Built with Effect**: Leverages the Effect library for a highly performant, concurrent, and error-resilient server following Effect-TS best practices.
+- **Ready to Deploy**: Includes configurations for easy deployment to Vercel (Node.js runtime).
 - **Consistent Error Model**: All errors return normalized JSON with a stable shape and a `requestId` for tracing.
-- **Performance Monitoring**: Built-in metrics collection and monitoring via `/api/metrics` endpoint.
-- **Advanced Error Handling**: Circuit breakers and retry strategies for improved reliability and fault tolerance.
+- **Production Observability**: Built-in metrics (Effect.Metric), structured logging, and distributed tracing (Effect.withSpan).
+- **Effect-Native Patterns**: Proper service patterns with Layers, immutable state management, and type-safe error handling.
+- **Intelligent Retry**: Automatic retry with exponential backoff using Effect.retry and Schedule.
 
 ## Runtime and adapters
 
@@ -62,16 +82,31 @@ Logging & CORS:
 - Both entry points enable structured logging via `HttpMiddleware.logger`.
 - CORS is enabled; configure via `CORS_ORIGIN`.
 
-## Performance Monitoring & Resilience
+## Observability & Resilience
 
-The application includes built-in performance monitoring and advanced error handling:
+The application follows Effect-TS best practices for production observability:
 
-- **Metrics Endpoint**: `/api/metrics` provides real-time metrics in Prometheus format
-- **Circuit Breakers**: Automatic fault tolerance for Notion API calls
-- **Retry Strategies**: Intelligent retry logic with exponential backoff
-- **Request Tracing**: Every request includes a unique ID for correlation
+### Metrics (Effect.Metric)
+- **Endpoint**: `/api/metrics` provides real-time metrics in Prometheus format
+- **Fiber-safe**: Uses Effect.Metric for concurrent-safe counters and histograms
+- **Automatic**: Tracks Notion API requests, durations, and errors
 
-See `docs/METRICS_AND_RESILIENCE.md` for detailed documentation and usage examples.
+### Distributed Tracing (Effect.withSpan)
+- **OpenTelemetry Ready**: All CRUD operations instrumented with Effect.withSpan
+- **Rich Context**: Spans include operation parameters for debugging
+- **Integrations**: Works with Jaeger, Datadog, Zipkin, and other OpenTelemetry exporters
+
+### Retry & Error Handling
+- **Effect.retry**: Automatic retry with Schedule-based policies
+- **Exponential Backoff**: Configurable delays with jitter
+- **Type-Safe Errors**: Tagged errors with Effect.catchAll and catchTags
+- **Request IDs**: Every request includes a unique ID for log correlation
+
+### Architecture
+- **Service Patterns**: All dependencies modeled as Effect services with Layers
+- **Immutable State**: No global mutable state, fiber-safe throughout
+- **Clock Service**: Deterministic time handling for testing
+- **Structured Logging**: Effect.log with JSON output
 
 ## Configuration & Security
 
@@ -432,8 +467,9 @@ The project uses Vitest for testing with the following configuration:
 
 ## Deployment
 
-Vercel configuration (`vercel.json`) targets Node v3 runtime for the
-serverless function and routes all paths to `api/index.ts`.
+### Vercel (Recommended)
+
+The project is configured for Vercel with Node.js runtime (`vercel.json`):
 
 ```json
 {
@@ -448,11 +484,37 @@ serverless function and routes all paths to `api/index.ts`.
 }
 ```
 
-Steps:
+**Steps:**
 
-1) Push to a Git repo and import into Vercel.
-2) Set env vars from the "Environment variables" section.
-3) Deploy.
+1. Push to a Git repo and import into Vercel
+2. Set environment variables (see Configuration section above)
+3. Deploy with `vercel --prod`
+
+**Note:** While local development uses Bun for speed, Vercel deployment uses Node.js runtime for compatibility.
+
+### Local Development
+
+```bash
+# Development server with watch mode
+bun run dev
+
+# Production build
+bun run build
+
+# Run tests
+bun test
+```
+
+### OpenTelemetry Integration (Optional)
+
+To enable distributed tracing in production, add an OpenTelemetry exporter:
+
+```bash
+bun add @effect/opentelemetry @opentelemetry/exporter-jaeger
+# or @opentelemetry/exporter-datadog, etc.
+```
+
+See `docs/DEPLOYMENT_READY.md` for detailed production deployment checklist and OpenTelemetry configuration examples.
 
 ## Contributing
 
