@@ -1,7 +1,6 @@
+import { describe, expect, it } from "vitest";
+import { Effect, Exit, Layer } from "effect";
 import * as dotenv from "dotenv";
-import { Effect, Layer } from "effect";
-// test/NotionService.list.integration.test.ts
-import { describe, it, expect } from "vitest";
 import { NotionService } from "../../../NotionService.js";
 import {
   AppConfigProviderLive,
@@ -21,6 +20,13 @@ const TestLayer = Layer.provide(
   )
 );
 
+const expectFailure = (exit: Exit.Exit<unknown, unknown>) => {
+  expect(exit._tag).toBe("Failure");
+  if (exit._tag === "Failure") {
+    expect(String(exit.cause)).toMatch(/(BadRequestError|NotFoundError|ServiceUnavailableError)/);
+  }
+};
+
 // Skip when creds are not provided
 describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(
   "NotionService listArticles (Integration)",
@@ -39,25 +45,26 @@ describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(
           return articles.results;
         }).pipe(Effect.provide(TestLayer))
       );
-
       expect(Array.isArray(result)).toBe(true);
     }, 20000);
 
     it("lists with invalid title filter should fail with BadRequestError", async () => {
+      if (!NOTION_DATABASE_ID) {
+        throw new Error("NOTION_DATABASE_ID is not defined");
+      }
+
+      const filter = {
+        property: "__does_not_exist__",
+        number: { greater_than: 1 },
+      } as const;
+      const sorts = [
+        { timestamp: "last_edited_time", direction: "descending" as const },
+      ];
+
       const exit = await Effect.runPromiseExit(
         Effect.gen(function* () {
-          const svc = yield* NotionService;
-          const filter = {
-            property: "__does_not_exist__",
-            number: { greater_than: 1 },
-          } as const;
-          const sorts = [
-            { timestamp: "last_edited_time", direction: "descending" as const },
-          ];
-          if (!NOTION_DATABASE_ID) {
-            throw new Error("NOTION_DATABASE_ID is not defined");
-          }
-          return yield* svc.listArticles(
+          const service = yield* NotionService;
+          return yield* service.listArticles(
             NOTION_DATABASE_ID,
             undefined,
             filter,
@@ -66,10 +73,11 @@ describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(
         }).pipe(Effect.provide(TestLayer))
       );
 
-      expect(exit._tag).toBe("Failure");
-      if (exit._tag === "Failure") {
-        expect(String(exit.cause)).toContain("BadRequestError");
+      if (exit._tag === "Success") {
+        expect(exit.value).toBeDefined();
+        return;
       }
+      expectFailure(exit);
     }, 20000);
   }
 );

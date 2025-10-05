@@ -1,18 +1,15 @@
 import { Effect } from "effect";
-import { InternalServerError, type NotionError } from "../NotionClient/errors.js";
+import {
+  mapToNotionError,
+  type NotionError,
+} from "../NotionClient/errors.js";
 
 /**
  * Maps unknown errors to NotionError types.
  * 
- * If the error is already a tagged NotionError, returns it as-is.
- * Otherwise, wraps it in InternalServerError.
- * 
- * @deprecated Prefer using Effect.catchAll with proper type narrowing
+ * @deprecated Use mapToNotionError from errors.ts instead
  */
-export const mapUnknownToNotionError = (e: unknown): NotionError =>
-  typeof (e as { _tag?: unknown })._tag === "string"
-    ? (e as NotionError)
-    : new InternalServerError({ cause: e });
+export const mapUnknownToNotionError = mapToNotionError;
 
 export const tapWarn = (message: string) =>
   Effect.tapError((e: unknown) =>

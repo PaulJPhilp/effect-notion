@@ -21,55 +21,55 @@ export class NotionClient extends Effect.Service<NotionClient>()(
         HttpClient.retryTransient({ times: 5 })
       );
 
-      const { notionHttpTimeoutMs } = yield* AppConfig;
+      const { notionApiKey, notionHttpTimeoutMs } = yield* AppConfig;
       const performRequest = createPerformRequest(client);
       const performRequestUnit = createPerformRequestUnit(client);
 
       const svc: NotionClientApi = {
-        retrievePage: (apiKey, pageId) =>
+        retrievePage: (pageId) =>
           performRequest(
             HttpClientRequest.get(
               `https://api.notion.com/v1/pages/${pageId}`
-            ).pipe(withNotionHeaders(apiKey)),
+            ).pipe(withNotionHeaders(notionApiKey)),
             NotionSchema.PageSchema,
             notionHttpTimeoutMs
           ),
 
-        createPage: (apiKey, databaseId, properties) =>
+        createPage: (databaseId, properties) =>
           performRequest(
             HttpClientRequest.post("https://api.notion.com/v1/pages").pipe(
               HttpClientRequest.bodyUnsafeJson({
                 parent: { database_id: databaseId },
                 properties,
               }),
-              withNotionHeaders(apiKey)
+              withNotionHeaders(notionApiKey)
             ),
             NotionSchema.PageSchema,
             notionHttpTimeoutMs
           ),
 
-        updatePage: (apiKey, pageId, body) =>
+        updatePage: (pageId, body) =>
           performRequest(
             HttpClientRequest.patch(
               `https://api.notion.com/v1/pages/${pageId}`
             ).pipe(
               HttpClientRequest.bodyUnsafeJson(body),
-              withNotionHeaders(apiKey)
+              withNotionHeaders(notionApiKey)
             ),
             NotionSchema.PageSchema,
             notionHttpTimeoutMs
           ),
 
-        retrieveDatabase: (apiKey, databaseId) =>
+        retrieveDatabase: (databaseId) =>
           performRequest(
             HttpClientRequest.get(
               `https://api.notion.com/v1/databases/${databaseId}`
-            ).pipe(withNotionHeaders(apiKey)),
+            ).pipe(withNotionHeaders(notionApiKey)),
             NotionSchema.DatabaseSchema,
             notionHttpTimeoutMs
           ),
 
-        queryDatabase: (apiKey, databaseId, body) =>
+        queryDatabase: (databaseId, body) =>
           performRequest(
             HttpClientRequest.post(
               `https://api.notion.com/v1/databases/${databaseId}/query`
@@ -81,13 +81,13 @@ export class NotionClient extends Effect.Service<NotionClient>()(
                   body.page_size)
                 ? HttpClientRequest.bodyUnsafeJson(body)
                 : (req) => req,
-              withNotionHeaders(apiKey)
+              withNotionHeaders(notionApiKey)
             ),
             NotionSchema.PageListResponseSchema,
             notionHttpTimeoutMs
           ),
 
-        retrieveBlockChildren: (apiKey, pageId, cursor) =>
+        retrieveBlockChildren: (pageId, cursor) =>
           performRequest(
             HttpClientRequest.get(
               cursor
@@ -95,25 +95,25 @@ export class NotionClient extends Effect.Service<NotionClient>()(
                     cursor
                   )}`
                 : `https://api.notion.com/v1/blocks/${pageId}/children`
-            ).pipe(withNotionHeaders(apiKey)),
+            ).pipe(withNotionHeaders(notionApiKey)),
             NotionSchema.BlockListResponseSchema,
             notionHttpTimeoutMs
           ),
 
-        deleteBlock: (apiKey, blockId) =>
+        deleteBlock: (blockId) =>
           performRequestUnit(
             HttpClientRequest.del(
               `https://api.notion.com/v1/blocks/${blockId}`
-            ).pipe(withNotionHeaders(apiKey)),
+            ).pipe(withNotionHeaders(notionApiKey)),
             notionHttpTimeoutMs
           ),
 
-        appendBlockChildren: (apiKey, pageId, blocks) =>
+        appendBlockChildren: (pageId, blocks) =>
           HttpClientRequest.patch(
             `https://api.notion.com/v1/blocks/${pageId}/children`
           ).pipe(
             HttpClientRequest.bodyUnsafeJson({ children: blocks }),
-            withNotionHeaders(apiKey),
+            withNotionHeaders(notionApiKey),
             (req) =>
               performRequest(
                 req,
@@ -122,7 +122,7 @@ export class NotionClient extends Effect.Service<NotionClient>()(
               )
           ),
 
-        createDatabase: (apiKey, parentPageId, title, properties) =>
+        createDatabase: (parentPageId, title, properties) =>
           performRequest(
             HttpClientRequest.post("https://api.notion.com/v1/databases").pipe(
               HttpClientRequest.bodyUnsafeJson({
@@ -135,7 +135,7 @@ export class NotionClient extends Effect.Service<NotionClient>()(
                 ],
                 properties,
               }),
-              withNotionHeaders(apiKey)
+              withNotionHeaders(notionApiKey)
             ),
             NotionSchema.DatabaseSchema,
             notionHttpTimeoutMs

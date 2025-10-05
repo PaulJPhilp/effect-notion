@@ -1,4 +1,4 @@
-import { Effect, Option } from "effect";
+import { Chunk, Effect, Option, Stream } from "effect";
 import * as Match from "effect/Match";
 import * as S from "effect/Schema";
 import { lexer } from "marked";
@@ -270,32 +270,42 @@ export const buildRuntimeEffectSchema = (schema: NormalizedDatabaseSchema) => {
 // ------------------------------
 // Effect helpers
 // ------------------------------
+
+/**
+ * Fetches all paginated results using Stream.paginateEffect.
+ * 
+ * This follows the Effect pattern for handling paginated APIs by
+ * modeling the pagination as a stream that automatically handles
+ * cursor-based iteration.
+ * 
+ * @param fetchFn - Function that fetches a page given an optional cursor
+ * @returns Effect that yields all results as a readonly array
+ */
 export const getAllPaginatedResults = <
   T extends {
     has_more: boolean;
     next_cursor: Option.Option<string>;
     results: ReadonlyArray<unknown>;
-  }
+  },
+  E
 >(
-  fetchFn: (cursor?: string) => Effect.Effect<T, unknown>
-): Effect.Effect<ReadonlyArray<T["results"][number]>, unknown> =>
-  Effect.gen(function* () {
-    let cursor: string | undefined = undefined;
-    let all: Array<T["results"][number]> = [];
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const page: T = yield* fetchFn(cursor);
-      all = all.concat(Array.from(page.results));
-      if (!page.has_more) {
-        break;
-      }
-      cursor = Option.getOrUndefined(page.next_cursor);
-      if (!cursor) {
-        break;
-      }
-    }
-    return all as ReadonlyArray<T["results"][number]>;
-  });
+  fetchFn: (cursor?: string) => Effect.Effect<T, E>
+): Effect.Effect<ReadonlyArray<T["results"][number]>, E> =>
+  Stream.paginateChunkEffect(
+    undefined as string | undefined,
+    (cursor: string | undefined) =>
+      fetchFn(cursor).pipe(
+        Effect.map((page): readonly [Chunk.Chunk<unknown>, Option.Option<string | undefined>] => [
+          Chunk.fromIterable(page.results),
+          page.has_more
+            ? page.next_cursor
+            : Option.none<string | undefined>(),
+        ])
+      )
+  ).pipe(
+    Stream.runCollect,
+    Effect.map((chunk) => Chunk.toReadonlyArray(chunk) as ReadonlyArray<T["results"][number]>)
+  );
 
 // ----------------------------------
 // Builder: simple spec -> Notion database properties

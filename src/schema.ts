@@ -1,8 +1,66 @@
+const DatabaseFieldSpecSchema = Schema.Struct({
+  type: Schema.Union(
+    Schema.Literal("title"),
+    Schema.Literal("rich_text"),
+    Schema.Literal("number"),
+    Schema.Literal("checkbox"),
+    Schema.Literal("date"),
+    Schema.Literal("url"),
+    Schema.Literal("email"),
+    Schema.Literal("files"),
+    Schema.Literal("people"),
+    Schema.Literal("relation"),
+    Schema.Literal("select"),
+    Schema.Literal("multi_select"),
+    Schema.Literal("status"),
+    Schema.Literal("formula")
+  ),
+  options: Schema.optional(Schema.Array(Schema.String)),
+  formulaType: Schema.optional(
+    Schema.Union(
+      Schema.Literal("number"),
+      Schema.Literal("string"),
+      Schema.Literal("boolean"),
+      Schema.Literal("date")
+    )
+  ),
+});
+
+const RawDatabaseSpecSchema = Schema.Record({
+  key: Schema.String,
+  value: DatabaseFieldSpecSchema,
+});
+
+const NormalizedDatabaseSpecSchema = RawDatabaseSpecSchema.pipe(
+  Schema.transform(RawDatabaseSpecSchema, {
+    decode: (spec) => {
+      const normalizedEntries = Object.entries(spec).map(([key, value]) => {
+        const trimmedKey = key.trim();
+        if (trimmedKey.length === 0) {
+          throw new Error("Database field names must not be empty after trimming");
+        }
+        return [trimmedKey, value] as const;
+      });
+      return Object.fromEntries(normalizedEntries);
+    },
+    encode: (spec) => spec,
+  })
+);
+
 // src/schema.ts
 import { Schema } from "effect";
 
 // --- Common ---
-export const NonEmptyString = Schema.String.pipe(Schema.minLength(1));
+const TrimmedString = Schema.transform(
+  Schema.String,
+  Schema.String,
+  {
+    decode: (value) => value.trim(),
+    encode: (value) => value,
+  }
+);
+
+export const NonEmptyString = TrimmedString.pipe(Schema.minLength(1));
 
 // Be permissive for IDs at the router boundary so upstream (Notion API)
 // determines invalid IDs and we can surface proper 404s via error mapping.
@@ -285,36 +343,7 @@ export type DbUpdatePageResponse = unknown;
 export const DbCreateDatabaseRequestSchema = Schema.Struct({
   parentPageId: NonEmptyString,
   title: NonEmptyString,
-  spec: Schema.Record({
-    key: NonEmptyString,
-    value: Schema.Struct({
-      type: Schema.Union(
-        Schema.Literal("title"),
-        Schema.Literal("rich_text"),
-        Schema.Literal("number"),
-        Schema.Literal("checkbox"),
-        Schema.Literal("date"),
-        Schema.Literal("url"),
-        Schema.Literal("email"),
-        Schema.Literal("files"),
-        Schema.Literal("people"),
-        Schema.Literal("relation"),
-        Schema.Literal("select"),
-        Schema.Literal("multi_select"),
-        Schema.Literal("status"),
-        Schema.Literal("formula")
-      ),
-      options: Schema.optional(Schema.Array(Schema.String)),
-      formulaType: Schema.optional(
-        Schema.Union(
-          Schema.Literal("number"),
-          Schema.Literal("string"),
-          Schema.Literal("boolean"),
-          Schema.Literal("date")
-        )
-      )
-    })
-  })
+  spec: NormalizedDatabaseSpecSchema,
 })
 
 export const DbCreateDatabaseResponseSchema = Schema.Struct({

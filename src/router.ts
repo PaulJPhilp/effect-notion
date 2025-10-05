@@ -24,6 +24,7 @@ import {
   getRequestId,
   setCurrentRequestId,
 } from "./http/requestId.js";
+import { Sources } from "./domain/registry/sources.js";
 import applyArticlesRoutes from "./router/articles.js";
 import * as ApiSchema from "./schema.js";
 import {
@@ -187,15 +188,48 @@ let apiRouter = HttpRouter.empty.pipe(
       const hasApiKey = Boolean(
         cfg.notionApiKey && cfg.notionApiKey.length > 0
       );
-      // Only check presence of API key (no generic DB implied)
-      const ok = hasApiKey;
+      const shouldCheckNotion =
+        cfg.env !== "development" && hasApiKey;
+
+      let notionOk: boolean | undefined = undefined;
+      let error: string | null = null;
+      let checkedDatabaseId: string | null = null;
+
+      if (shouldCheckNotion) {
+        const candidate = Sources.all()[0];
+        if (!candidate) {
+          yield* Effect.logWarning(
+            "health: no configured Notion source to validate"
+          );
+        } else {
+          checkedDatabaseId = candidate.databaseId;
+          const notionService = yield* NotionService;
+          const result = yield* notionService
+            .getDatabaseSchema(candidate.databaseId)
+            .pipe(Effect.either);
+          if (result._tag === "Left") {
+            notionOk = false;
+            error = String(result.left);
+            yield* Effect.logWarning(
+              `health: notion check failed for db=${candidate.databaseId}`
+            );
+          } else {
+            notionOk = true;
+            yield* Effect.logDebug(
+              `health: notion check ok for db=${candidate.databaseId}`
+            );
+          }
+        }
+      }
+
+      const ok = hasApiKey && (!shouldCheckNotion || notionOk === true);
       const body = {
         ok,
         env: cfg.env,
         hasApiKey,
-        checkedDatabaseId: null,
-        notionOk: undefined,
-        error: null,
+        checkedDatabaseId,
+        notionOk,
+        error,
       } as const;
 
       // Add request ID to response headers

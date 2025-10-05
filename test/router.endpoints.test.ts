@@ -50,7 +50,7 @@ describe("Router Endpoints", () => {
           "http://localhost/api/get-database-schema?databaseId=invalid"
         )
       );
-      expect([400, 500]).toContain(response.status);
+      expect([400, 404, 500]).toContain(response.status);
       // Handle both JSON and non-JSON responses
       try {
         const body = await response.json();

@@ -1,6 +1,10 @@
-import { Effect, FiberRef } from "effect";
+import { Effect, FiberRef, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import { RequestIdRef, getCurrentRequestId } from "../src/http/requestId.js";
+import {
+  RequestIdRef,
+  RequestIdService,
+  getCurrentRequestId,
+} from "../src/http/requestId.js";
 
 describe("Request ID Middleware", () => {
   it("stores and retrieves request ID from FiberRef", async () => {
@@ -14,7 +18,7 @@ describe("Request ID Middleware", () => {
         // Verify it can be retrieved
         const retrievedId = yield* getCurrentRequestId();
         expect(retrievedId).toBe(testRequestId);
-      })
+      }).pipe(Effect.provide(Layer.provideMerge(Layer.empty, RequestIdService.Live)))
     );
   });
 

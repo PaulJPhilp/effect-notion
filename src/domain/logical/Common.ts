@@ -1,38 +1,61 @@
 import { Schema } from "effect"
 
-export const BaseEntity = Schema.Struct({
-  id: Schema.String, // `${source}_${pageId}`
-  source: Schema.String,
-  pageId: Schema.String,
-  databaseId: Schema.String,
+const TrimmedString = Schema.transform(
+  Schema.String,
+  Schema.String,
+  {
+    decode: (value) => value.trim(),
+    encode: (value) => value,
+  }
+)
 
-  name: Schema.String,
-  description: Schema.optional(Schema.String),
+const NonEmptyTrimmedString = TrimmedString.pipe(Schema.minLength(1))
+
+const NormalizedStringArray = Schema.transform(
+  Schema.Array(Schema.String),
+  Schema.Array(Schema.String),
+  {
+    decode: (values) => {
+      const trimmed = values.map((value) => value.trim())
+      return trimmed.filter((value) => value.length > 0)
+    },
+    encode: (values) => values,
+  }
+)
+
+export const BaseEntity = Schema.Struct({
+  id: NonEmptyTrimmedString, // `${source}_${pageId}`
+  source: NonEmptyTrimmedString,
+  pageId: NonEmptyTrimmedString,
+  databaseId: NonEmptyTrimmedString,
+
+  name: NonEmptyTrimmedString,
+  description: Schema.optional(TrimmedString),
 
   createdAt: Schema.DateFromSelf,
   updatedAt: Schema.DateFromSelf,
-  createdBy: Schema.optional(Schema.String),
-  updatedBy: Schema.optional(Schema.String),
+  createdBy: Schema.optional(TrimmedString),
+  updatedBy: Schema.optional(TrimmedString),
 
-  type: Schema.optional(Schema.String),
-  tags: Schema.Array(Schema.String),
-  status: Schema.optional(Schema.String),
+  type: Schema.optional(TrimmedString),
+  tags: NormalizedStringArray,
+  status: Schema.optional(TrimmedString),
   publishedAt: Schema.optional(Schema.DateFromSelf),
-  warnings: Schema.optional(Schema.Array(Schema.String)),
+  warnings: Schema.optional(NormalizedStringArray),
 })
 export type BaseEntity = Schema.Schema.Type<typeof BaseEntity>
 
 export const ListParams = Schema.Struct({
-  source: Schema.String,
+  source: NonEmptyTrimmedString,
   pageSize: Schema.optional(
     Schema.Number.pipe(Schema.int(), Schema.between(1, 100))
   ),
-  startCursor: Schema.optional(Schema.String),
+  startCursor: Schema.optional(TrimmedString),
   filter: Schema.optional(
     Schema.Struct({
-      statusEquals: Schema.optional(Schema.String),
-      typeEquals: Schema.optional(Schema.String),
-      tagIn: Schema.optional(Schema.Array(Schema.String)),
+      statusEquals: Schema.optional(TrimmedString),
+      typeEquals: Schema.optional(TrimmedString),
+      tagIn: Schema.optional(NormalizedStringArray),
       publishedAfter: Schema.optional(Schema.DateFromSelf),
       publishedBefore: Schema.optional(Schema.DateFromSelf),
     })

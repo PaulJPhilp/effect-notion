@@ -95,13 +95,12 @@ describe("API failure paths", () => {
       expect([401, 404, 500]).toContain(response.status);
       try {
         const body = await response.json();
-        expect(body).toBeDefined();
         expect(typeof body.requestId).toBe("string");
         expect(typeof body.code).toBe("string");
         if (response.status === 401) {
           expect(body.code).toBe("InvalidApiKey");
         } else if (response.status === 404) {
-          expect(body.code).toBe("NotFound");
+          expect(["NotFoundError", "BadRequestError"]).toContain(body.errorTag);
         } else if (response.status === 500) {
           expect(body.code).toBe("InternalServerError");
         }

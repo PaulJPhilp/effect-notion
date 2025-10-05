@@ -18,7 +18,6 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
     dependencies: [NotionClient.Default, AppConfigProviderLive, NotionService.Default],
     effect: Effect.gen(function* () {
       const notionClient = yield* NotionClient;
-      const { notionApiKey } = yield* AppConfig;
       const notionService = yield* NotionService;
 
       const svc: ArticlesRepositoryApi = {
@@ -81,7 +80,7 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
           args: { source: string; pageId: string }
         ): Effect.Effect<BaseEntity, NotionError> =>
           notionClient
-            .retrievePage(notionApiKey, args.pageId)
+            .retrievePage(args.pageId)
             .pipe(
               tapWarn(
                 `ArticlesRepository.get failed source=${args.source} page=${args.pageId}`
@@ -113,7 +112,7 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
             });
 
             const page = yield* notionClient
-              .createPage(notionApiKey, cfg.databaseId, properties)
+              .createPage(cfg.databaseId, properties)
               .pipe(
                 tapWarn(
                   `ArticlesRepository.create failed source=${args.source} db=${cfg.databaseId}`
@@ -144,7 +143,7 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
             });
 
             const page = yield* notionClient
-              .updatePage(notionApiKey, args.pageId, {
+              .updatePage(args.pageId, {
                 properties,
               })
               .pipe(
@@ -172,7 +171,7 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
           args: { source: string; pageId: string }
         ): Effect.Effect<void, NotionError> =>
           notionClient
-            .updatePage(notionApiKey, args.pageId, { archived: true })
+            .updatePage(args.pageId, { archived: true })
             .pipe(
               tapWarn(
                 `ArticlesRepository.delete failed source=${args.source} page=${args.pageId}`

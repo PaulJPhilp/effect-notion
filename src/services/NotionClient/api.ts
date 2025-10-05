@@ -5,7 +5,6 @@ import type { NotionError } from "./errors.js";
 
 export interface NotionClientApi {
   retrievePage: (
-    apiKey: string,
     pageId: string
   ) => Effect.Effect<
     S.Schema.Type<typeof NotionSchema.PageSchema>,
@@ -13,7 +12,6 @@ export interface NotionClientApi {
   >;
 
   createPage: (
-    apiKey: string,
     databaseId: string,
     properties: Record<string, unknown>
   ) => Effect.Effect<
@@ -22,7 +20,6 @@ export interface NotionClientApi {
   >;
 
   updatePage: (
-    apiKey: string,
     pageId: string,
     body: { properties?: Record<string, unknown>; archived?: boolean }
   ) => Effect.Effect<
@@ -31,7 +28,6 @@ export interface NotionClientApi {
   >;
 
   retrieveDatabase: (
-    apiKey: string,
     databaseId: string
   ) => Effect.Effect<
     S.Schema.Type<typeof NotionSchema.DatabaseSchema>,
@@ -39,7 +35,6 @@ export interface NotionClientApi {
   >;
 
   queryDatabase: (
-    apiKey: string,
     databaseId: string,
     body?: {
       filter?: unknown;
@@ -53,7 +48,6 @@ export interface NotionClientApi {
   >;
 
   retrieveBlockChildren: (
-    apiKey: string,
     pageId: string,
     cursor?: string
   ) => Effect.Effect<
@@ -62,12 +56,10 @@ export interface NotionClientApi {
   >;
 
   deleteBlock: (
-    apiKey: string,
     blockId: string
   ) => Effect.Effect<void, NotionError>;
 
   appendBlockChildren: (
-    apiKey: string,
     pageId: string,
     blocks: ReadonlyArray<NotionSchema.NotionBlockInput>
   ) => Effect.Effect<
@@ -77,7 +69,6 @@ export interface NotionClientApi {
 
   // Testing/utility: create a database with a provided properties config
   createDatabase: (
-    apiKey: string,
     parentPageId: string,
     title: string,
     properties: Record<string, unknown>

@@ -1,5 +1,8 @@
 import { Context, Effect, FiberRef, Layer } from "effect";
 
+const requestIdRef = FiberRef.unsafeMake("");
+export const RequestIdRef = requestIdRef;
+
 /**
  * Service for managing request IDs in a fiber-safe manner.
  * 
@@ -16,9 +19,14 @@ export class RequestIdService extends Context.Tag("RequestIdService")<
   /**
    * Live layer that creates the RequestId service with a proper
    * FiberRef initialized within an Effect context.
+   * 
+   * Note: Using Layer.sync with FiberRef.unsafeMake is acceptable here
+   * because the FiberRef is created once at application startup and
+   * doesn't require cleanup. The "unsafe" refers to creating it outside
+   * an Effect context, which is fine for this use case.
    */
   static readonly Live = Layer.sync(this, () => ({
-    ref: FiberRef.unsafeMake(""),
+    ref: requestIdRef,
   }));
 }
 

@@ -18,7 +18,8 @@ export const publishArticle = (
   pageId: string
 ): Effect.Effect<
   { success: boolean; properties: unknown },
-  NotionError
+  NotionError,
+  NotionService
 > =>
   Effect.gen(function* () {
     const notionService = yield* NotionService;
@@ -64,7 +65,8 @@ export const unpublishArticle = (
   pageId: string
 ): Effect.Effect<
   { success: boolean; properties: unknown },
-  NotionError
+  NotionError,
+  NotionService
 > =>
   Effect.gen(function* () {
     const notionService = yield* NotionService;
@@ -100,7 +102,8 @@ export const scheduleArticle = (
   publishDate: Date
 ): Effect.Effect<
   { success: boolean; scheduledFor: string },
-  NotionError
+  NotionError,
+  NotionService
 > =>
   Effect.gen(function* () {
     const notionService = yield* NotionService;
@@ -143,7 +146,7 @@ export const updateArticleMetadata = (
     featured?: boolean;
     publishedDate?: Date;
   }
-): Effect.Effect<{ success: boolean }, NotionError> =>
+): Effect.Effect<{ success: boolean }, NotionError, NotionService> =>
   Effect.gen(function* () {
     const notionService = yield* NotionService;
 
@@ -194,7 +197,8 @@ export const batchPublishArticles = (
   pageIds: string[]
 ): Effect.Effect<
   { published: number; failed: number },
-  never
+  never,
+  NotionService
 > =>
   Effect.gen(function* () {
     yield* Effect.logInfo(`Batch publishing ${pageIds.length} articles`);
@@ -233,7 +237,8 @@ export const publishWithValidation = (
   pageId: string
 ): Effect.Effect<
   { success: boolean; message: string },
-  NotionError
+  NotionError,
+  NotionService
 > =>
   Effect.gen(function* () {
     const notionService = yield* NotionService;
