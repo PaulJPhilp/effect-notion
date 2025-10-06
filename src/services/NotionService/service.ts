@@ -41,6 +41,28 @@ export class NotionService extends Effect.Service<NotionService>()(
       };
       const schemaCacheRef = yield* Ref.make(new Map<string, CacheEntry>());
       const SCHEMA_TTL_MS = 10 * 60 * 1000; // 10 minutes
+      const MAX_CACHE_SIZE = 100; // LRU eviction at 100 entries
+
+      /**
+       * Evicts least recently used cache entries when size exceeds MAX_CACHE_SIZE.
+       * Uses lastAccessedAt to determine LRU order.
+       */
+      const evictLRUIfNeeded = (
+        cache: Map<string, CacheEntry>
+      ): Map<string, CacheEntry> => {
+        if (cache.size <= MAX_CACHE_SIZE) {
+          return cache;
+        }
+
+        // Sort by lastAccessedAt ascending (oldest first)
+        const entries = Array.from(cache.entries()).sort(
+          ([, a], [, b]) => a.lastAccessedAt - b.lastAccessedAt
+        );
+
+        // Keep only the most recent MAX_CACHE_SIZE entries
+        const toKeep = entries.slice(-MAX_CACHE_SIZE);
+        return new Map(toKeep);
+      };
 
       const setCacheEntry = (
         databaseId: string,
@@ -49,7 +71,7 @@ export class NotionService extends Effect.Service<NotionService>()(
         Ref.update(schemaCacheRef, (cache) => {
           const next = new Map(cache);
           next.set(databaseId, entry);
-          return next;
+          return evictLRUIfNeeded(next);
         });
 
       const updateCacheEntry = (

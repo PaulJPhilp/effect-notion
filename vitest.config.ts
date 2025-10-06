@@ -15,5 +15,23 @@ export default defineConfig({
       "dist/**", // do not run compiled JS tests
       "node_modules/**",
     ],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html", "lcov"],
+      include: ["src/**/*.ts"],
+      exclude: [
+        "src/**/__tests__/**",
+        "src/**/types.ts",
+        "src/**/api.ts",
+        "src/generated/**",
+        "**/*.d.ts",
+      ],
+      thresholds: {
+        lines: 60,
+        functions: 60,
+        branches: 50,
+        statements: 60,
+      },
+    },
   },
 });

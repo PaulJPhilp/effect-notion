@@ -127,6 +127,47 @@ LOG_LEVEL=Info
 NOTION_DB_ARTICLES_BLOG=your_blog_database_id_here
 ```
 
+### Source Configuration
+
+Sources (databases) are configured via JSON files for flexibility and environment-specific settings:
+
+**Default configuration (`sources.config.json`):**
+
+```json
+{
+  "version": "1.0",
+  "sources": [
+    {
+      "alias": "blog",
+      "kind": "articles",
+      "databaseId": "${NOTION_DB_ARTICLES_BLOG}",
+      "adapter": "blog",
+      "capabilities": {
+        "update": true,
+        "delete": true
+      },
+      "description": "Public-facing blog posts"
+    }
+  ]
+}
+```
+
+**Key features:**
+
+- **Environment variable substitution**: Use `${VAR_NAME}` pattern for database IDs
+- **Environment-specific configs**: Point to different configs via `NOTION_SOURCES_CONFIG` env var
+- **Per-source capabilities**: Control read/write/delete permissions per source
+- **Startup validation**: Schema validation with clear error messages
+- **No code changes needed**: Add/remove sources by editing JSON
+
+**For production (read-only):**
+
+```bash
+NOTION_SOURCES_CONFIG=./sources.config.production.json bun start
+```
+
+See [Source Configuration Guide](./docs/SOURCES_CONFIG.md) for complete reference and [Migration Guide](./docs/MIGRATION_CONFIG.md) for upgrading from hardcoded sources.
+
 ### Env file precedence
 
 Loaded at startup in this order (later overrides earlier):
@@ -145,10 +186,8 @@ Loaded at startup in this order (later overrides earlier):
 - `CORS_ALLOWED_HEADERS`: Comma-separated list of allowed headers. Default: `Content-Type,Authorization`.
 - `LOG_LEVEL`: Effect logger level. Default: `Info`.
 - `NOTION_API_KEY`: Your Notion integration key.
-- `NOTION_DB_ARTICLES_BLOG`: Optional database id for the `articles`
-  router when using the `blog` source. If set, the `articles` endpoints can
-  read/write from this database using the blog adapter. See the "Articles"
-  API section below.
+- `NOTION_SOURCES_CONFIG`: Path to sources configuration file. Default: `./sources.config.json`.
+- `NOTION_DB_ARTICLES_BLOG`: Database ID for the `blog` source (used via environment variable substitution in sources config).
 
 ## Quick Start
 
@@ -351,11 +390,12 @@ curl "http://localhost:3000/api/health"
 ### Articles (router-based, source-aware)
 
 These endpoints operate on logical "articles" and are parameterized by a
-`source` (e.g., `blog`). Sources are configured in
-`src/domain/registry/sources.ts` from environment variables.
+`source` (e.g., `blog`). Sources are configured in `sources.config.json`
+with environment variable substitution.
 
-- Current built-in source:
-  - `blog` → requires `NOTION_DB_ARTICLES_BLOG` to be set.
+**Example sources:**
+- `blog` → uses `${NOTION_DB_ARTICLES_BLOG}` from environment
+- Add more by editing `sources.config.json` (see [Source Configuration Guide](./docs/SOURCES_CONFIG.md))
 
 All POST requests require `Content-Type: application/json`.
 
@@ -516,6 +556,24 @@ bun add @effect/opentelemetry @opentelemetry/exporter-jaeger
 
 See `docs/DEPLOYMENT_READY.md` for detailed production deployment checklist and OpenTelemetry configuration examples.
 
+## Documentation
+
+### Quick Links
+
+- **[Development Guide](./docs/DEVELOPMENT.md)** - Architecture, patterns, and development workflows
+- **[Production Deployment](./docs/PRODUCTION.md)** - Deployment, monitoring, and security best practices
+- **[Source Configuration](./docs/SOURCES_CONFIG.md)** - JSON-based database configuration reference
+- **[Migration Guide](./docs/MIGRATION_CONFIG.md)** - Upgrade from hardcoded to config-based sources
+- **[Architecture Overview](./docs/Architecture.md)** - System design and component relationships
+- **[Schema Adapters](./docs/SchemaAdapter.md)** - Pattern for mapping Notion to domain entities
+- **[Metrics & Resilience](./docs/METRICS_AND_RESILIENCE.md)** - Observability and error handling
+
+### Getting Help
+
+- Review the [Development Guide](./docs/DEVELOPMENT.md) for common tasks and troubleshooting
+- Check the [Production Guide](./docs/PRODUCTION.md) for deployment issues
+- Open an issue for bugs or feature requests
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or PR.
@@ -526,6 +584,8 @@ Before submitting a PR, ensure build and tests pass:
 bun run build  # type-check
 bun test       # run tests
 ```
+
+See [DEVELOPMENT.md](./docs/DEVELOPMENT.md) for detailed contribution guidelines.
 
 ## Modular Services & Import Conventions
 

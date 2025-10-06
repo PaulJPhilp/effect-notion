@@ -24,7 +24,7 @@ import {
   getRequestId,
   setCurrentRequestId,
 } from "./http/requestId.js";
-import { Sources } from "./domain/registry/sources.js";
+import { Sources, SourceNotFoundError } from "./domain/registry/sources.js";
 import applyArticlesRoutes from "./router/articles.js";
 import * as ApiSchema from "./schema.js";
 import {
@@ -551,6 +551,15 @@ const routerWithErrors = apiRouter.pipe(
       Effect.gen(function* () {
         yield* Effect.logWarning("catchTags: NotFoundError");
         return yield* notFound();
+      }),
+    SourceNotFoundError: (e: SourceNotFoundError) =>
+      Effect.gen(function* () {
+        yield* Effect.logWarning(
+          `catchTags: SourceNotFoundError kind=${e.kind} alias=${e.alias}`
+        );
+        return yield* notFound({
+          detail: `Source not found: ${e.kind}/${e.alias}`,
+        });
       }),
     InternalServerError: (e: unknown) =>
       Effect.gen(function* () {

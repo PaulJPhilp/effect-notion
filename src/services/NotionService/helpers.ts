@@ -1,13 +1,30 @@
 import { Chunk, Effect, Option, Stream } from "effect";
 import * as Match from "effect/Match";
 import * as S from "effect/Schema";
-import { lexer } from "marked";
+import { lexer, setOptions } from "marked";
 import type {
   Block,
   Database,
   NormalizedDatabaseSchema,
   NotionBlockInput,
 } from "../../NotionSchema.js";
+
+/**
+ * Configure marked library for safe markdown parsing.
+ *
+ * Security notes:
+ * - We don't sanitize because the output goes to Notion API, not directly
+ *   to users. Notion handles its own sanitization.
+ * - gfm: GitHub Flavored Markdown for better compatibility
+ * - breaks: Convert line breaks to <br> for readability
+ *
+ * If this markdown is ever rendered directly to users (e.g., in a preview),
+ * you MUST add HTML sanitization (e.g., DOMPurify) before rendering.
+ */
+setOptions({
+  gfm: true, // GitHub Flavored Markdown
+  breaks: true, // Convert \n to <br>
+});
 
 // ------------------------------
 // Pure text helpers

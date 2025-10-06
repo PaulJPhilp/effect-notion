@@ -1,0 +1,40 @@
+{
+  "$schema": "./sources.config.schema.json",
+  "version": "1.0",
+  "sources": [
+    {
+      "alias": "blog",
+      "kind": "articles",
+      "databaseId": "${NOTION_DB_ARTICLES_BLOG}",
+      "adapter": "blog",
+      "capabilities": {
+        "update": false,
+        "delete": false
+      },
+      "description": "Public-facing blog posts (read-only in production)"
+    }
+  ],
+  "defaults": {
+    "articles": {
+      "adapter": "blog",
+      "capabilities": {
+        "update": false,
+        "delete": false
+      }
+    },
+    "changelog": {
+      "adapter": "default",
+      "capabilities": {
+        "update": false,
+        "delete": false
+      }
+    },
+    "projects": {
+      "adapter": "default",
+      "capabilities": {
+        "update": false,
+        "delete": false
+      }
+    }
+  }
+}

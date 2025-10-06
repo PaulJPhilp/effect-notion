@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import { app } from "../src/router.js";
 import { AppConfigProviderLive } from "../src/config.js";
 import { RequestIdService } from "../src/http/requestId.js";
+import { NotionClient } from "../src/services/NotionClient.js";
 import { NotionService } from "../src/services/NotionService/service.js";
+import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
 
 const { NOTION_API_KEY, NOTION_DB_ARTICLES_BLOG } = process.env;
 
@@ -14,7 +16,9 @@ const TestLayer = Layer.mergeAll(
   AppConfigProviderLive,
   HttpServer.layerContext,
   RequestIdService.Live,
-  NotionService.Default
+  NotionClient.Default,
+  NotionService.Default,
+  ArticlesRepository.Default
 );
 
 const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer);

@@ -15,6 +15,16 @@ import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
 import { NotionClient } from "../src/services/NotionClient.js";
 import { NotionService } from "../src/services/NotionService/service.js";
 
+/**
+ * Centralized CORS configuration for both middleware and OPTIONS fast-path.
+ * These values should match the environment defaults from config.ts.
+ */
+const CORS_CONFIG = {
+  corsOrigin: "*",
+  corsAllowedMethods: "POST,GET,OPTIONS",
+  corsAllowedHeaders: "Content-Type,Authorization",
+} as const;
+
 const LogLevelLayer = Layer.unwrapEffect(
   AppConfig.pipe(Effect.map((cfg) => Logger.minimumLogLevel(cfg.logLevel)))
 );
@@ -35,14 +45,7 @@ const AppLayers = Layer.mergeAll(
 const { handler: webHandler } = toWebHandlerLayerWith(AppLayers, {
   toHandler: () => HttpRouter.toHttpApp(app),
   middleware: (self) => {
-    const corsMiddleware = HttpMiddleware.cors(
-      buildCorsOptions({
-        corsOrigin: "*",
-        corsAllowedMethods: "POST,GET,OPTIONS",
-        corsAllowedHeaders: "Content-Type,Authorization",
-      })
-    );
-
+    const corsMiddleware = HttpMiddleware.cors(buildCorsOptions(CORS_CONFIG));
     return HttpMiddleware.logger(corsMiddleware(self));
   },
 });
@@ -50,21 +53,17 @@ const { handler: webHandler } = toWebHandlerLayerWith(AppLayers, {
 // Vercel Node v3 Web API entrypoint: (Request) => Promise<Response>
 export default async function handler(request: Request): Promise<Response> {
   try {
-    // Fast-path for OPTIONS preflight: respond immediately without 
+    // Fast-path for OPTIONS preflight: respond immediately without
     // initializing the full Effect runtime
     if (request.method === "OPTIONS") {
-      const cfg = buildCorsOptions({
-        corsOrigin: "*",
-        corsAllowedMethods: "POST,GET,OPTIONS",
-        corsAllowedHeaders: "Content-Type,Authorization",
-      });
-      
+      const cfg = buildCorsOptions(CORS_CONFIG);
+
       return new Response(null, {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": cfg.allowedOrigins?.[0] ?? "*",
-          "Access-Control-Allow-Methods": "POST,GET,OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type,Authorization",
+          "Access-Control-Allow-Methods": CORS_CONFIG.corsAllowedMethods,
+          "Access-Control-Allow-Headers": CORS_CONFIG.corsAllowedHeaders,
           "Access-Control-Max-Age": "86400",
         },
       });

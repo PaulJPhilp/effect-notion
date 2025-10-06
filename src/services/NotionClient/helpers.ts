@@ -272,14 +272,14 @@ export const withNotionHeaders = (apiKey: string) =>
 /**
  * Creates a function to perform Notion API requests with Effect-native
  * retry, timeout, and metrics.
- * 
+ *
  * Features:
  * - Automatic retry with exponential backoff for transient failures
  * - Configurable timeout with proper cancellation
  * - Fiber-safe metrics collection
  * - Type-safe response parsing with Schema validation
  * - Deterministic time tracking using Clock service
- * 
+ *
  * @param client - Effect HTTP client instance
  * @returns Request executor function
  */
@@ -288,8 +288,7 @@ export const createPerformRequest =
   <A, I>(
     request: HttpClientRequest.HttpClientRequest,
     schema: S.Schema<A, I, never>,
-    timeoutMs = 10_000,
-    _operation = "unknown"
+    timeoutMs = 10_000
   ): Effect.Effect<A, NotionError> =>
     Effect.gen(function* () {
       const startTime = yield* Clock.currentTimeMillis;
@@ -340,8 +339,7 @@ export const createPerformRequestUnit =
   (client: HttpClient.HttpClient) =>
   (
     request: HttpClientRequest.HttpClientRequest,
-    timeoutMs = 10_000,
-    _operation = "unknown"
+    timeoutMs = 10_000
   ): Effect.Effect<void, NotionError> =>
     Effect.gen(function* () {
       const startTime = yield* Clock.currentTimeMillis;

@@ -233,9 +233,19 @@ export type GetArticleContentResponse = Schema.Schema.Type<
 >;
 
 // --- /api/update-article-content ---
+// Notion has a 2000 character limit per block, and content is split into blocks.
+// We set a conservative 50KB limit (≈50,000 chars) for total content size.
+// This allows ~25 blocks of rich content while preventing abuse.
+const MAX_CONTENT_LENGTH = 50 * 1024; // 50KB
+
 export const UpdateArticleContentRequestSchema = Schema.Struct({
   pageId: NotionIdSchema,
-  content: NonEmptyString,
+  content: NonEmptyString.pipe(
+    Schema.maxLength(MAX_CONTENT_LENGTH, {
+      message: () =>
+        `Content must not exceed ${MAX_CONTENT_LENGTH} characters (got ${MAX_CONTENT_LENGTH}+)`,
+    })
+  ),
 });
 export type UpdateArticleContentRequest = Schema.Schema.Type<
   typeof UpdateArticleContentRequestSchema
