@@ -1,78 +1,248 @@
 # effect-notion
 
-`effect-notion` is a lightweight, production-ready server that acts as a secure proxy for the Notion API. Built with the powerful [Effect](https://effect.website/) library, it provides a robust, type-safe, and efficient way to fetch data from Notion databases and pages.
+`effect-notion` is a lightweight, production-ready server that acts as a
+secure proxy for the Notion API. Built with the powerful
+[Effect](https://effect.website/) library, it provides a robust, type-safe,
+and efficient way to fetch data from Notion databases and pages.
 
-It comes with a suite of features designed for serious application development, including logical field overrides, dynamic filtering, and schema-driven type generation.
+It includes features for real apps: logical field overrides, dynamic
+filtering, schema-aware validation, consistent errors, and optional
+type/code generation.
 
 ## Who is this for?
 
-This server is ideal for developers building front-end applications (e.g., blogs, documentation sites, personal portfolios) that use Notion as a CMS. It acts as a secure and robust backend layer, abstracting away the complexities of the Notion API and preventing the exposure of API keys on the client-side.
+This server is ideal for developers building front-end applications (e.g., blogs, documentation sites, personal portfolios) that use Notion as a CMS. It acts as a secure and robust backend layer, abstracting away the complexities of the Notion API and preventing the exposure of API keys on the client-side.  Think of it as a "smart bridge" that makes Notion work like a traditional database while keeping all the benefits of Notion's interface and collaboration features.
+
+## Key Benefits
+Security: API keys never leave your server
+Type Safety: Full TypeScript support with generated types
+Flexibility: Decouples your app from Notion's exact schema
+Performance: Built for production with Effect's concurrent processing
+Deployment Ready: Works with Vercel and other platforms
 
 ## Architecture
 
-The server acts as a secure intermediary between your application and the Notion API.
+The server acts as a secure intermediary between your application and the
+Notion API.
 
 `[Your Frontend App] <--> [effect-notion server] <--> [Notion API]`
 
-Your frontend makes requests to this server, and this server, which securely stores your `NOTION_API_KEY`, makes the authenticated requests to Notion.
+Your frontend talks to this server; the server (holding your
+`NOTION_API_KEY`) talks to Notion.
+
+### Effect-TS Architecture
+
+This project follows Effect-TS best practices throughout:
+
+- **Service Patterns**: All dependencies (NotionClient, NotionService, ArticlesRepository) are modeled as Effect services
+- **Layer-Based DI**: Dependencies are provided via Layers for testability and composability
+- **Immutable State**: No global mutable state; uses FiberRef and Ref for safe concurrent state
+- **Type-Safe Errors**: All errors are tagged with Data.TaggedError for exhaustive handling
+- **Effect Chains**: Pure Effect pipelines with no Promise conversions
+- **Clock Service**: Time operations use Clock for deterministic testing
+- **Metrics & Tracing**: Built-in observability with Effect.Metric and Effect.withSpan
+
+**Key Services:**
+- `RequestIdService` - Request correlation IDs (FiberRef-based)
+- `LogicalFieldOverridesService` - Database field mapping configuration
+- `NotionClient` - Low-level Notion API client with retry
+- `NotionService` - Business logic with schema caching
+- `ArticlesRepository` - High-level CRUD operations with tracing
+
+### Schema-driven adapters
+
+See `docs/SchemaAdapter.md` for the schema-driven adapter pattern used to
+map Notion property bags to domain entities using Effect Schema, including
+how to add new field mappings.
 
 ## Features
 
 - **Secure Notion API Proxy**: Safely access the Notion API without exposing your credentials on the client-side.
 - **Rich Filtering Capabilities**: Dynamically filter Notion database entries using a flexible JSON-based query language.
 - **Logical Field Overrides**: Decouple your application from your Notion schema by mapping Notion's field names to logical names in your code.
-- **Codegen for Type Safety**: Generate TypeScript types from your live Notion database to ensure end-to-end type safety.
-- **Built with Effect**: Leverages the Effect library for a highly performant, concurrent, and error-resilient server.
-- **Ready to Deploy**: Includes configurations for easy deployment to services like Vercel.
+- **Codegen for Type Safety**: Generate TypeScript types and Effect Schema from your live Notion database to ensure end-to-end type safety.
+- **Built with Effect**: Leverages the Effect library for a highly performant, concurrent, and error-resilient server following Effect-TS best practices.
+- **Ready to Deploy**: Includes configurations for easy deployment to Vercel (Node.js runtime).
 - **Consistent Error Model**: All errors return normalized JSON with a stable shape and a `requestId` for tracing.
+- **Production Observability**: Built-in metrics (Effect.Metric), structured logging, and distributed tracing (Effect.withSpan).
+- **Effect-Native Patterns**: Proper service patterns with Layers, immutable state management, and type-safe error handling.
+- **Intelligent Retry**: Automatic retry with exponential backoff using Effect.retry and Schedule.
 
 ## Runtime and adapters
 
-- `src/router.ts`: Effect `HttpRouter` defining all routes. This is the
-  single source of truth (no adapter bypasses). Converted to `HttpApp` where needed.
-- `api/index.ts`: Vercel Node v3 adapter. Converts the router via `HttpRouter.toHttpApp(...)`, then materializes it into a
-  Fetch-style handler and bridges to Node's `IncomingMessage/ServerResponse`.
-- `src/main.ts`: Local Bun server entry for development using Effect's Node
-  HTTP server integration.
+- `src/router.ts`: Effect `HttpRouter` defining the API surface. It is the
+  source of truth for business logic and error handling.
+- `api/index.ts`: Vercel Node v3 adapter. It converts the router to a
+  Fetch-style handler and applies logging + CORS. Health and all routes
+  are served via the router (no fast-path bypasses).
+- `src/main.ts`: Local Bun/Node server entry for development using the
+  Effect Node HTTP server integration.
 
 Logging & CORS:
-- Both entrypoints enable structured request/response logging using `HttpMiddleware.logger`.
-- CORS is enabled with defaults; configure via `CORS_ORIGIN`.
+- Both entry points enable structured logging via `HttpMiddleware.logger`.
+- CORS is enabled; configure via `CORS_ORIGIN`.
+
+## Observability & Resilience
+
+The application follows Effect-TS best practices for production observability:
+
+### Metrics (Effect.Metric)
+- **Endpoint**: `/api/metrics` provides real-time metrics in Prometheus format
+- **Fiber-safe**: Uses Effect.Metric for concurrent-safe counters and histograms
+- **Automatic**: Tracks Notion API requests, durations, and errors
+
+### Distributed Tracing (Effect.withSpan)
+- **OpenTelemetry Ready**: All CRUD operations instrumented with Effect.withSpan
+- **Rich Context**: Spans include operation parameters for debugging
+- **Integrations**: Works with Jaeger, Datadog, Zipkin, and other OpenTelemetry exporters
+
+### Retry & Error Handling
+- **Effect.retry**: Automatic retry with Schedule-based policies
+- **Exponential Backoff**: Configurable delays with jitter
+- **Type-Safe Errors**: Tagged errors with Effect.catchAll and catchTags
+- **Request IDs**: Every request includes a unique ID for log correlation
+
+### Architecture
+- **Service Patterns**: All dependencies modeled as Effect services with Layers
+- **Immutable State**: No global mutable state, fiber-safe throughout
+- **Clock Service**: Deterministic time handling for testing
+- **Structured Logging**: Effect.log with JSON output
 
 ## Configuration & Security
 
-This server is designed to be the **sole keeper** of your `NOTION_API_KEY`. The key must be configured on the server as an environment variable and should never be exposed to or sent from your client-side application.
+This server is the **sole keeper** of your `NOTION_API_KEY`. Never expose or
+send this key from the client.
 
-Create a `.env` file in the root of the project by copying the `.env.example` file.
+Create a `.env` file at the project root with the following variables:
 
 ```bash
-cp .env.example .env
+# Required
+NOTION_API_KEY=your_notion_integration_key_here
+
+# Optional
+NODE_ENV=development
+PORT=3000
+CORS_ORIGIN=*
+LOG_LEVEL=Info
+NOTION_DB_ARTICLES_BLOG=your_blog_database_id_here
 ```
 
-### Environment Variables
+### Source Configuration
 
-- `NOTION_API_KEY`: **Required. Your Notion API integration key.** This is a secret and should be set securely in your deployment environment.
-- `NOTION_DATABASE_ID`: **Optional.** A default database ID to use for queries if one is not provided in the API request.
-- `NOTION_PAGE_ID`: **Optional.** A default page ID to use for queries if one is not provided in the API request.
+Sources (databases) are configured via JSON files for flexibility and environment-specific settings:
+
+**Default configuration (`sources.config.json`):**
+
+```json
+{
+  "version": "1.0",
+  "sources": [
+    {
+      "alias": "blog",
+      "kind": "articles",
+      "databaseId": "${NOTION_DB_ARTICLES_BLOG}",
+      "adapter": "blog",
+      "capabilities": {
+        "update": true,
+        "delete": true
+      },
+      "description": "Public-facing blog posts"
+    }
+  ]
+}
+```
+
+**Key features:**
+
+- **Environment variable substitution**: Use `${VAR_NAME}` pattern for database IDs
+- **Environment-specific configs**: Point to different configs via `NOTION_SOURCES_CONFIG` env var
+- **Per-source capabilities**: Control read/write/delete permissions per source
+- **Startup validation**: Schema validation with clear error messages
+- **No code changes needed**: Add/remove sources by editing JSON
+
+**For production (read-only):**
+
+```bash
+NOTION_SOURCES_CONFIG=./sources.config.production.json bun start
+```
+
+See [Source Configuration Guide](./docs/SOURCES_CONFIG.md) for complete reference and [Migration Guide](./docs/MIGRATION_CONFIG.md) for upgrading from hardcoded sources.
+
+### Env file precedence
+
+Loaded at startup in this order (later overrides earlier):
+
+1) `.env`
+2) `.env.local`
+3) `.env.$NODE_ENV`
+4) `.env.$NODE_ENV.local`
+
+### Environment variables
+
+- `NODE_ENV` (development | test | production). Default: development.
+- `PORT`: Port for local server. Default: 3000.
+- `CORS_ORIGIN`: CORS allowed origin(s). Default: `*`.
+- `CORS_ALLOWED_METHODS`: Comma-separated list of allowed HTTP methods. Default: `POST,GET,OPTIONS`.
+- `CORS_ALLOWED_HEADERS`: Comma-separated list of allowed headers. Default: `Content-Type,Authorization`.
+- `LOG_LEVEL`: Effect logger level. Default: `Info`.
+- `NOTION_API_KEY`: Your Notion integration key.
+- `NOTION_SOURCES_CONFIG`: Path to sources configuration file. Default: `./sources.config.json`.
+- `NOTION_DB_ARTICLES_BLOG`: Database ID for the `blog` source (used via environment variable substitution in sources config).
 
 ## Quick Start
 
-1.  **Install dependencies:**
-    ```bash
-    bun install
-    ```
-2.  **Run the development server:**
-    ```bash
-    bun run dev
-    ```
-3.  **The server will be available at `http://localhost:3000`.**
+1. **Install dependencies**
+   ```bash
+   bun install
+   ```
+2. **Run the dev server (Bun)**
+   ```bash
+   bun run dev
+   ```
+3. Server runs at `http://localhost:3000` (or your `PORT`).
+
+Useful scripts from `package.json`:
+
+- `bun start` — run `src/main.ts`
+- `bun run dev` — watch mode
+- `bun test` — run tests (Vitest via Bun)
+- `bun run build` — type-check via `tsc`
+- `bun run codegen:notion` — run schema codegen (see below)
+
+Diagnostics helper:
+
+```bash
+bun scripts/diagnose.ts /api/health
+```
+
+You can also POST JSON bodies to exercise routes end-to-end. The script
+prints request/response details and structured logs.
+
+Usage:
+
+```bash
+# GET (default method)
+bun scripts/diagnose.ts "/api/health"
+
+# POST with JSON body
+bun scripts/diagnose.ts "/api/articles/list" POST '{"source":"blog","pageSize":5}'
+
+# Arbitrary path + body
+bun scripts/diagnose.ts "/api/your/route" POST '{"key":"value"}'
+```
+
+Notes:
+
+- Content-Type is set to `application/json` automatically for POST bodies.
+- Logs include pre-response info and Effect structured logs at Debug level.
 
 ## API Endpoints
-### Ping (liveness)
 
-- **Endpoint**: `GET /api/ping`
-- **Description**: Simple liveness probe. Returns `ok`.
+Note on HTTP methods:
 
+- Use GET for simple, idempotent retrieval by ID (e.g., `pageId` in query).
+- Use POST when a structured JSON body is required (e.g., filters/sorts for
+  listing; content payload for update).
 
 ### List Articles (paginated)
 
@@ -202,20 +372,74 @@ All error responses follow a consistent JSON structure and include a request ID:
 }
 ```
 
-- Codes include: `BadRequest`, `InvalidApiKey`, `NotFound`, `InternalServerError`.
+- Codes include: `BadRequest`, `InvalidApiKey`, `NotFound`,
+  `InternalServerError`.
 - The `x-request-id` header mirrors `requestId` for log correlation.
 
 ### Health (router-based)
 
 - **Endpoint**: `GET /api/health`
-- **Description**: Reports server health. If `NOTION_DATABASE_ID` is set, the
-  server performs a real Notion call to validate connectivity.
+- **Description**: Reports server health via the router.
 
 **Example:**
 
 ```bash
 curl "http://localhost:3000/api/health"
 ```
+
+### Articles (router-based, source-aware)
+
+These endpoints operate on logical "articles" and are parameterized by a
+`source` (e.g., `blog`). Sources are configured in `sources.config.json`
+with environment variable substitution.
+
+**Example sources:**
+- `blog` → uses `${NOTION_DB_ARTICLES_BLOG}` from environment
+- Add more by editing `sources.config.json` (see [Source Configuration Guide](./docs/SOURCES_CONFIG.md))
+
+All POST requests require `Content-Type: application/json`.
+
+• List
+- Endpoint: `POST /api/articles/list`
+- Body:
+```json
+{ "source": "blog", "pageSize": 20 }
+```
+
+• Get by id
+- Endpoint: `GET /api/articles/get`
+- Query: `source=blog&pageId=<PAGE_ID>`
+
+• Create
+- Endpoint: `POST /api/articles/create`
+- Body (partial fields are allowed):
+```json
+{ "source": "blog", "data": { "name": "New Article" } }
+```
+
+• Update
+- Endpoint: `POST /api/articles/update`
+- Body (partial fields are allowed):
+```json
+{
+  "source": "blog",
+  "pageId": "<PAGE_ID>",
+  "patch": { "name": "Updated" }
+}
+```
+
+• Delete (archive)
+- Endpoint: `POST /api/articles/delete`
+- Body:
+```json
+{ "source": "blog", "pageId": "<PAGE_ID>" }
+```
+
+Notes:
+- Field shapes align with `src/domain/logical/Common.ts` (`BaseEntity`,
+  `ListParams`).
+- The Notion mapping is handled by the source adapter, e.g.,
+  `src/domain/adapters/articles/blog.adapter.ts`.
 
 ## Advanced Features
 
@@ -242,41 +466,152 @@ This request fetches entries where "Status" is "In Progress" AND "Priority" is "
 
 ### Codegen
 
-For maximum type safety and to catch schema-related errors at compile-time instead of runtime, you can generate TypeScript types directly from your live Notion database.
+Optional codegen can emit a static module describing your current Notion
+database schema to aid compile-time checks.
 
-**How to use it:**
+From `scripts/generate-notion-schema.ts`:
 
-1.  **Ensure your `.env` file has `NOTION_API_KEY` and `NOTION_DATABASE_ID` set.**
-2.  **Run the codegen script:**
-    ```bash
-    bun run codegen:notion
-    ```
-3.  **The script will create `src/NotionSchema.ts` with your database's schema.**
+```bash
+# Uses env vars if flags are omitted
+bun scripts/generate-notion-schema.ts \
+  --databaseId <id> \
+  [--apiKey <key>] \
+  [--out src/generated/notion-schema.ts] \
+  [--emitEffectSchema]
+```
+
+Defaults:
+
+- `apiKey`: `NOTION_API_KEY`
+- `out`: `src/generated/notion-schema.ts`
+
+Outputs:
+
+- `src/generated/notion-schema.ts` (types and data)
+- If `--emitEffectSchema` is provided, also emits
+  `src/generated/notion-schema.effect.ts`.
 
 ## Testing
 
-The project includes a suite of integration tests that run against a live Notion database.
+Tests include live Notion integration. Ensure env vars are set (`.env` or
+system).
 
-**To run the tests:**
+```bash
+bun test
+```
 
-1.  **Make sure your `.env` file is configured with your Notion credentials.**
-2.  **Run the test command:**
-    ```bash
-    bun test
-    ```
+The project uses Vitest for testing with the following configuration:
+- Test environment: Node.js
+- Test files: `test/**/*.test.ts`
+- Excludes compiled JavaScript and node_modules
 
 ## Deployment
 
-The server is configured for easy deployment on Vercel. Simply connect your repository to a new Vercel project and configure the environment variables as described in the "Configuration & Security" section.
+### Vercel (Recommended)
+
+The project is configured for Vercel with Node.js runtime (`vercel.json`):
+
+```json
+{
+  "version": 2,
+  "functions": {
+    "api/index.ts": { "runtime": "@vercel/node@3.2.20" }
+  },
+  "routes": [
+    { "src": "/api/(.*)", "dest": "api/index.ts" },
+    { "src": "/(.*)", "dest": "api/index.ts" }
+  ]
+}
+```
+
+**Steps:**
+
+1. Push to a Git repo and import into Vercel
+2. Set environment variables (see Configuration section above)
+3. Deploy with `vercel --prod`
+
+**Note:** While local development uses Bun for speed, Vercel deployment uses Node.js runtime for compatibility.
+
+### Local Development
+
+```bash
+# Development server with watch mode
+bun run dev
+
+# Production build
+bun run build
+
+# Run tests
+bun test
+```
+
+### OpenTelemetry Integration (Optional)
+
+To enable distributed tracing in production, add an OpenTelemetry exporter:
+
+```bash
+bun add @effect/opentelemetry @opentelemetry/exporter-jaeger
+# or @opentelemetry/exporter-datadog, etc.
+```
+
+See `docs/DEPLOYMENT_READY.md` for detailed production deployment checklist and OpenTelemetry configuration examples.
+
+## Documentation
+
+### Quick Links
+
+- **[Development Guide](./docs/DEVELOPMENT.md)** - Architecture, patterns, and development workflows
+- **[Production Deployment](./docs/PRODUCTION.md)** - Deployment, monitoring, and security best practices
+- **[Source Configuration](./docs/SOURCES_CONFIG.md)** - JSON-based database configuration reference
+- **[Migration Guide](./docs/MIGRATION_CONFIG.md)** - Upgrade from hardcoded to config-based sources
+- **[Architecture Overview](./docs/Architecture.md)** - System design and component relationships
+- **[Schema Adapters](./docs/SchemaAdapter.md)** - Pattern for mapping Notion to domain entities
+- **[Metrics & Resilience](./docs/METRICS_AND_RESILIENCE.md)** - Observability and error handling
+
+### Getting Help
+
+- Review the [Development Guide](./docs/DEVELOPMENT.md) for common tasks and troubleshooting
+- Check the [Production Guide](./docs/PRODUCTION.md) for deployment issues
+- Open an issue for bugs or feature requests
 
 ## Contributing
 
-Contributions are welcome! Please feel free to open an issue or submit a pull request.
+Contributions are welcome! Please open an issue or PR.
 
-Before submitting a pull request, please ensure the project builds and tests
-pass:
+Before submitting a PR, ensure build and tests pass:
 
 ```bash
-bun run build    # type-check
-bun test         # run tests
+bun run build  # type-check
+bun test       # run tests
+```
+
+See [DEVELOPMENT.md](./docs/DEVELOPMENT.md) for detailed contribution guidelines.
+
+## Modular Services & Import Conventions
+
+- Services live under `src/services/<ServiceName>/` with a consistent layout:
+  - `api.ts` — public interface and Effect tag
+  - `types.ts` — request/response types
+  - `errors.ts` — typed errors (optional)
+  - `helpers.ts` — pure helpers
+  - `service.ts` — implementation and `.Default` layer
+  - `__tests__/` — colocated tests
+
+- Backward compatibility is preserved with re-exports:
+  - `src/<ServiceName>.ts` re-exports from
+    `src/services/<ServiceName>/service.ts`
+  - `src/services/<ServiceName>.ts` (legacy) also re-exports to the new impl
+
+- TypeScript NodeNext with verbatim syntax requires explicit extensions:
+  - Use `.js` for runtime imports of values
+  - Use `.ts` for type-only imports
+
+Example:
+
+```ts
+// runtime
+import { NotionService } from "./src/services/NotionService/service.js"
+
+// type-only
+import type { ListResult } from "./src/services/ArticlesRepository/types.ts"
 ```

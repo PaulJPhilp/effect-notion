@@ -1,8 +1,16 @@
-// src/config.ts
-import { Config, ConfigError, Layer, LogLevel, ConfigProvider, Effect } from "effect";
-import * as path from "node:path";
-import * as fs from "node:fs";
 import dotenv from "dotenv";
+import * as fs from "node:fs";
+import * as path from "node:path";
+// src/config.ts
+import {
+  Config,
+  ConfigProvider,
+  Context,
+  Data,
+  Effect,
+  Layer,
+  LogLevel,
+} from "effect";
 
 // Define the schema for our application's configuration
 export type Env = "development" | "test" | "production";
@@ -32,61 +40,149 @@ loadEnvFiles(NODE_ENV);
 export const AppConfig = Config.all({
   env: Config.string("NODE_ENV").pipe(
     Config.withDefault(NODE_ENV),
-    Config.map((s) => (s === "test" || s === "production" ? s : "development" as Env)),
+    Config.map((s) =>
+      s === "test" || s === "production" ? s : ("development" as Env)
+    )
   ),
   port: Config.number("PORT").pipe(Config.withDefault(3000)),
   corsOrigin: Config.string("CORS_ORIGIN").pipe(Config.withDefault("*")),
-  logLevel: Config.logLevel("LOG_LEVEL").pipe(Config.withDefault(LogLevel.Info)),
-  // Default database ID (optional). Keep runtime discovery on-demand.
-  notionDatabaseId: Config.string("NOTION_DATABASE_ID").pipe(
-    Config.withDefault("")
+  corsAllowedMethods: Config.string("CORS_ALLOWED_METHODS").pipe(
+    Config.withDefault("POST,GET,OPTIONS")
+  ),
+  corsAllowedHeaders: Config.string("CORS_ALLOWED_HEADERS").pipe(
+    Config.withDefault("Content-Type,Authorization")
+  ),
+  logLevel: Config.logLevel("LOG_LEVEL").pipe(
+    Config.withDefault(LogLevel.Info)
   ),
   // Optional, but required in production for integration paths.
   notionApiKey: Config.string("NOTION_API_KEY").pipe(Config.withDefault("")),
+  // HTTP client timeout for Notion requests (milliseconds)
+  notionHttpTimeoutMs: Config.number("NOTION_HTTP_TIMEOUT_MS").pipe(
+    Config.withDefault(10000)
+  ),
 });
 
 // Provide a ConfigProvider that sources from process env with defaults
 export const AppConfigProviderLive = Layer.setConfigProvider(
-  ConfigProvider.fromEnv(),
+  ConfigProvider.fromEnv()
 );
 
 // Perform additional validation beyond parsing.
 // - In production, NOTION_API_KEY must be present.
 export const ValidatedAppConfig = Effect.gen(function* () {
   const cfg = yield* AppConfig;
-  if (cfg.env === "production" && (!cfg.notionApiKey || cfg.notionApiKey.length === 0)) {
+  if (
+    cfg.env === "production" &&
+    (!cfg.notionApiKey || cfg.notionApiKey.length === 0)
+  ) {
+    class ConfigValidationError extends Data.TaggedError(
+      "ConfigValidationError"
+    )<{
+      readonly reason: string;
+    }> {}
+
     return yield* Effect.fail(
-      new Error("NOTION_API_KEY is required in production environment"),
+      new ConfigValidationError({
+        reason: "NOTION_API_KEY is required in production environment",
+      })
     );
   }
   return cfg;
 });
 
 // ----------------------------------------------------------------------------
-// Logical Field Overrides
+// CORS Configuration Helper
 // ----------------------------------------------------------------------------
-// Allow per-database mapping from app logical fields to Notion property names.
-// Example: map Article.slug -> "Slug" column in a specific database.
-//
-// Usage: add entries like:
-// LogicalFieldOverrides["<db-id>"] = { title: "Name", slug: "Slug" };
-export type LogicalFieldMap = Record<string, string>;
+export function buildCorsOptions(cfg: {
+  readonly corsOrigin: string;
+  readonly corsAllowedMethods: string;
+  readonly corsAllowedHeaders: string;
+}) {
+  return {
+    allowedOrigins: [cfg.corsOrigin],
+    allowedMethods: cfg.corsAllowedMethods.split(",").map((s) => s.trim()),
+    allowedHeaders: cfg.corsAllowedHeaders.split(",").map((s) => s.trim()),
+  } as const;
+}
 
-export const LogicalFieldOverrides: Record<string, LogicalFieldMap> = {
-  // "<database-id>": { title: "Name", slug: "Slug" },
-};
+// ----------------------------------------------------------------------------
+// Logical Field Overrides Service
+// ----------------------------------------------------------------------------
+/**
+ * Service for managing per-database field name overrides.
+ * 
+ * Allows mapping from application logical field names to actual Notion
+ * property names on a per-database basis. This is useful when different
+ * databases use different property names for the same logical concept.
+ * 
+ * Example: Database A uses "Name" for title, Database B uses "Title"
+ */
+export type LogicalFieldMap = Readonly<Record<string, string>>;
 
+export class LogicalFieldOverridesService extends Context.Tag(
+  "LogicalFieldOverridesService"
+)<
+  LogicalFieldOverridesService,
+  {
+    readonly overrides: ReadonlyMap<string, LogicalFieldMap>;
+  }
+>() {
+  /**
+   * Live layer with empty overrides.
+   * 
+   * For production use, provide a custom layer with your database-specific
+   * overrides using `LogicalFieldOverridesService.make()`.
+   */
+  static readonly Live = Layer.succeed(this, {
+    overrides: new Map<string, LogicalFieldMap>(),
+  });
+
+  /**
+   * Creates a layer with specific field overrides.
+   * 
+   * @example
+   * ```typescript
+   * const CustomOverrides = LogicalFieldOverridesService.make({
+   *   "db-id-123": { title: "Name", slug: "Slug" },
+   *   "db-id-456": { title: "Title", slug: "URL" }
+   * });
+   * ```
+   */
+  static make(
+    overrides: Record<string, LogicalFieldMap>
+  ): Layer.Layer<LogicalFieldOverridesService> {
+    return Layer.succeed(this, {
+      overrides: new Map(Object.entries(overrides)),
+    });
+  }
+}
+
+/**
+ * Resolves a logical field name to the actual Notion property name
+ * for a specific database.
+ * 
+ * @param databaseId - The Notion database ID
+ * @param logicalField - The logical field name (e.g., "title", "slug")
+ * @returns Effect that yields the property name or undefined
+ */
 export const resolveLogicalField = (
   databaseId: string,
-  logicalField: string,
-): string | undefined => LogicalFieldOverrides[databaseId]?.[logicalField];
+  logicalField: string
+): Effect.Effect<string | undefined, never, LogicalFieldOverridesService> =>
+  Effect.gen(function* () {
+    const service = yield* LogicalFieldOverridesService;
+    const dbOverrides = service.overrides.get(databaseId);
+    return dbOverrides?.[logicalField];
+  });
 
+/**
+ * Resolves the title field override for a specific database.
+ * 
+ * @param databaseId - The Notion database ID
+ * @returns Effect that yields the title property name or undefined
+ */
 export const resolveTitleOverride = (
-  databaseId: string,
-): string | undefined => resolveLogicalField(databaseId, "title");
-
-// Expose a Config<string> for database id; callers can combine with others.
-export const DatabaseIdConfig = Config.map(
-  AppConfig,
-  (cfg) => cfg.notionDatabaseId,
-);
+  databaseId: string
+): Effect.Effect<string | undefined, never, LogicalFieldOverridesService> =>
+  resolveLogicalField(databaseId, "title");

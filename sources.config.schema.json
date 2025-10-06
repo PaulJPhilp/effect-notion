@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Notion Sources Configuration",
+  "description": "Configuration for Notion database sources with adapter mapping",
+  "type": "object",
+  "required": ["version", "sources"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Configuration schema version"
+    },
+    "sources": {
+      "type": "array",
+      "description": "List of configured Notion database sources",
+      "items": {
+        "type": "object",
+        "required": ["alias", "kind", "databaseId"],
+        "properties": {
+          "alias": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Unique identifier for this source (lowercase, alphanumeric with hyphens)"
+          },
+          "kind": {
+            "enum": ["articles", "changelog", "projects"],
+            "description": "Entity kind/type for this source"
+          },
+          "databaseId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Notion database ID or environment variable placeholder like ${NOTION_DB_ARTICLES_BLOG}"
+          },
+          "adapter": {
+            "type": "string",
+            "description": "Adapter name to use for schema mapping (defaults to 'default' for the kind)"
+          },
+          "capabilities": {
+            "type": "object",
+            "description": "Operations allowed on this source",
+            "properties": {
+              "update": {
+                "type": "boolean",
+                "description": "Allow update operations"
+              },
+              "delete": {
+                "type": "boolean",
+                "description": "Allow delete (archive) operations"
+              }
+            },
+            "additionalProperties": false
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of this source"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Default settings per kind",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "description": "Default adapter for this kind"
+          },
+          "capabilities": {
+            "type": "object",
+            "properties": {
+              "update": {
+                "type": "boolean"
+              },
+              "delete": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

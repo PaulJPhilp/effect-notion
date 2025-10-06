@@ -1,36 +1,33 @@
-import { NodeContext } from "@effect/platform-node";
+// no platform-specific layers needed here
 import * as HttpApp from "@effect/platform/HttpApp";
 import * as HttpRouter from "@effect/platform/HttpRouter";
-import * as HttpServer from "@effect/platform/HttpServer";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
-import * as HttpPlatform from "@effect/platform/HttpPlatform";
 import * as dotenv from "dotenv";
-import { Effect, Layer, Logger } from "effect";
+import { Effect, Layer, Logger, LogLevel } from "effect";
 import { NotionClient } from "../src/NotionClient.js";
 import { NotionService } from "../src/NotionService.js";
 import { AppConfigProviderLive } from "../src/config.js";
+import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
 import { app } from "../src/router.js";
 
 dotenv.config();
 
 const FullLayer = Layer.mergeAll(
   Logger.json,
+  Logger.minimumLogLevel(LogLevel.Debug),
   AppConfigProviderLive,
-  NodeContext.layer,
+  ArticlesRepository.Default,
   NotionClient.Default,
   NotionService.Default,
-  HttpServer.layerContext,
-  HttpPlatform.layer
 );
 
 const MinimalLayer = Layer.mergeAll(
   Logger.json,
+  Logger.minimumLogLevel(LogLevel.Debug),
   AppConfigProviderLive,
-  NodeContext.layer,
+  ArticlesRepository.Default,
   NotionClient.Default,
   NotionService.Default,
-  HttpServer.layerContext,
-  HttpPlatform.layer
 );
 
 // Pre-response logging handler (logs before platform converts response)
@@ -50,19 +47,20 @@ const preLog: HttpApp.PreResponseHandler = (req, res) =>
     return res;
   });
 
+const appWithPre = HttpApp.withPreResponseHandler(app, preLog) as any;
 const { handler: fullHandler } = HttpApp.toWebHandlerLayer(
-  app as unknown as HttpApp.Default<never, never>,
+  appWithPre,
   FullLayer,
 );
 const { handler: minimalHandler } = HttpApp.toWebHandlerLayer(
-  app as unknown as HttpApp.Default<never, never>,
+  appWithPre,
   MinimalLayer,
 );
 
 // Build a minimal app directly to sanity-check adapter
 const tinyRouter = HttpRouter.empty.pipe(
   HttpRouter.get(
-    "/api/ping",
+    "/api/health",
     Effect.succeed(HttpServerResponse.text("tiny-ok\n", { status: 200 }))
   ),
   HttpRouter.catchAll((e) =>
@@ -94,9 +92,21 @@ const microHandler = HttpApp.toWebHandler(
 
 async function main() {
   const path = process.argv[2] || "/api/health";
-  console.log("Requesting:", path);
+  const method = (process.argv[3] || "GET").toUpperCase();
+  const rawBody = process.argv[4];
+  const init: RequestInit =
+    method === "GET"
+      ? { method }
+      : {
+          method,
+          headers: { "content-type": "application/json" },
+          body: rawBody,
+        };
+  console.log("Requesting:", path, method, rawBody ?? "");
   try {
-    const res1 = await fullHandler(new Request(`http://localhost${path}`));
+    const res1 = await fullHandler(
+      new Request(`http://localhost${path}`, init)
+    );
     const text1 = await res1.text();
     console.log("full: status=", res1.status);
     console.log("full: headers=", Object.fromEntries(res1.headers.entries()));
@@ -105,7 +115,9 @@ async function main() {
     console.error("full handler threw:", e);
   }
   try {
-    const res2 = await minimalHandler(new Request(`http://localhost${path}`));
+    const res2 = await minimalHandler(
+      new Request(`http://localhost${path}`, init)
+    );
     const text2 = await res2.text();
     console.log("minimal: status=", res2.status);
     console.log(
@@ -117,7 +129,9 @@ async function main() {
     console.error("minimal handler threw:", e);
   }
   try {
-    const res3 = await tinyHandler(new Request(`http://localhost${path}`));
+    const res3 = await tinyHandler(
+      new Request(`http://localhost${path}`, init)
+    );
     const text3 = await res3.text();
     console.log("tiny: status=", res3.status);
     console.log("tiny: headers=", Object.fromEntries(res3.headers.entries()));

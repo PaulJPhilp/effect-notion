@@ -1,19 +1,75 @@
+const DatabaseFieldSpecSchema = Schema.Struct({
+  type: Schema.Union(
+    Schema.Literal("title"),
+    Schema.Literal("rich_text"),
+    Schema.Literal("number"),
+    Schema.Literal("checkbox"),
+    Schema.Literal("date"),
+    Schema.Literal("url"),
+    Schema.Literal("email"),
+    Schema.Literal("files"),
+    Schema.Literal("people"),
+    Schema.Literal("relation"),
+    Schema.Literal("select"),
+    Schema.Literal("multi_select"),
+    Schema.Literal("status"),
+    Schema.Literal("formula")
+  ),
+  options: Schema.optional(Schema.Array(Schema.String)),
+  formulaType: Schema.optional(
+    Schema.Union(
+      Schema.Literal("number"),
+      Schema.Literal("string"),
+      Schema.Literal("boolean"),
+      Schema.Literal("date")
+    )
+  ),
+});
+
+const RawDatabaseSpecSchema = Schema.Record({
+  key: Schema.String,
+  value: DatabaseFieldSpecSchema,
+});
+
+const NormalizedDatabaseSpecSchema = RawDatabaseSpecSchema.pipe(
+  Schema.transform(RawDatabaseSpecSchema, {
+    decode: (spec) => {
+      const normalizedEntries = Object.entries(spec).map(([key, value]) => {
+        const trimmedKey = key.trim();
+        if (trimmedKey.length === 0) {
+          throw new Error("Database field names must not be empty after trimming");
+        }
+        return [trimmedKey, value] as const;
+      });
+      return Object.fromEntries(normalizedEntries);
+    },
+    encode: (spec) => spec,
+  })
+);
+
 // src/schema.ts
 import { Schema } from "effect";
 
 // --- Common ---
-export const NonEmptyString = Schema.String.pipe(Schema.minLength(1));
+const TrimmedString = Schema.transform(
+  Schema.String,
+  Schema.String,
+  {
+    decode: (value) => value.trim(),
+    encode: (value) => value,
+  }
+);
+
+export const NonEmptyString = TrimmedString.pipe(Schema.minLength(1));
 
 // Be permissive for IDs at the router boundary so upstream (Notion API)
 // determines invalid IDs and we can surface proper 404s via error mapping.
 export const NotionIdSchema = NonEmptyString;
 
-
-
 // --- Notion query: typed subset ---
 const SortDirectionSchema = Schema.Union(
   Schema.Literal("ascending"),
-  Schema.Literal("descending"),
+  Schema.Literal("descending")
 );
 
 export const SortSchema = Schema.Struct({
@@ -117,13 +173,13 @@ const FilterLeafSchema = Schema.Union(
   StatusFilterSchema,
   CheckboxFilterSchema,
   NumberFilterSchema,
-  DateFilterSchema,
+  DateFilterSchema
 );
 
 export const FilterSchema = Schema.Union(
   FilterLeafSchema,
   Schema.Struct({ and: Schema.Array(FilterLeafSchema) }),
-  Schema.Struct({ or: Schema.Array(FilterLeafSchema) }),
+  Schema.Struct({ or: Schema.Array(FilterLeafSchema) })
 );
 
 // --- /api/list-articles ---
@@ -136,7 +192,11 @@ export const ListArticlesRequestSchema = Schema.Struct({
   sorts: Schema.optional(Schema.Array(SortSchema)),
   // Pagination
   pageSize: Schema.optional(
-    Schema.Number.pipe(Schema.int(), Schema.greaterThanOrEqualTo(1), Schema.lessThanOrEqualTo(100)),
+    Schema.Number.pipe(
+      Schema.int(),
+      Schema.greaterThanOrEqualTo(1),
+      Schema.lessThanOrEqualTo(100)
+    )
   ),
   startCursor: Schema.optional(NonEmptyString),
 });
@@ -173,9 +233,19 @@ export type GetArticleContentResponse = Schema.Schema.Type<
 >;
 
 // --- /api/update-article-content ---
+// Notion has a 2000 character limit per block, and content is split into blocks.
+// We set a conservative 50KB limit (≈50,000 chars) for total content size.
+// This allows ~25 blocks of rich content while preventing abuse.
+const MAX_CONTENT_LENGTH = 50 * 1024; // 50KB
+
 export const UpdateArticleContentRequestSchema = Schema.Struct({
   pageId: NotionIdSchema,
-  content: NonEmptyString,
+  content: NonEmptyString.pipe(
+    Schema.maxLength(MAX_CONTENT_LENGTH, {
+      message: () =>
+        `Content must not exceed ${MAX_CONTENT_LENGTH} characters (got ${MAX_CONTENT_LENGTH}+)`,
+    })
+  ),
 });
 export type UpdateArticleContentRequest = Schema.Schema.Type<
   typeof UpdateArticleContentRequestSchema
@@ -223,3 +293,91 @@ export const GetArticleMetadataResponseSchema = Schema.Struct({
 export type GetArticleMetadataResponse = Schema.Schema.Type<
   typeof GetArticleMetadataResponseSchema
 >;
+
+// --------------------------------------------
+// Dynamic DB endpoints (Notion-native shapes)
+// --------------------------------------------
+export const DbQueryRequestSchema = Schema.Struct({
+  databaseId: NotionIdSchema,
+  filter: Schema.optional(Schema.Unknown),
+  sorts: Schema.optional(Schema.Unknown),
+  pageSize: Schema.optional(
+    Schema.Number.pipe(
+      Schema.int(),
+      Schema.greaterThanOrEqualTo(1),
+      Schema.lessThanOrEqualTo(100)
+    )
+  ),
+  startCursor: Schema.optional(NonEmptyString),
+});
+export type DbQueryRequest = Schema.Schema.Type<typeof DbQueryRequestSchema>;
+
+export const DbQueryResponseSchema = Schema.Struct({
+  pages: Schema.Array(Schema.Unknown),
+  hasMore: Schema.Boolean,
+  nextCursor: Schema.OptionFromNullOr(Schema.String),
+});
+export type DbQueryResponse = Schema.Schema.Type<typeof DbQueryResponseSchema>;
+
+export const DbGetPageRequestSchema = Schema.Struct({
+  pageId: NotionIdSchema,
+});
+export type DbGetPageRequest = Schema.Schema.Type<
+  typeof DbGetPageRequestSchema
+>;
+
+export const DbGetPageResponseSchema = Schema.Unknown;
+export type DbGetPageResponse = unknown;
+
+export const DbCreatePageRequestSchema = Schema.Struct({
+  databaseId: NotionIdSchema,
+  properties: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+});
+export type DbCreatePageRequest = Schema.Schema.Type<
+  typeof DbCreatePageRequestSchema
+>;
+export const DbCreatePageResponseSchema = Schema.Unknown;
+export type DbCreatePageResponse = unknown;
+
+export const DbUpdatePageRequestSchema = Schema.Struct({
+  pageId: NotionIdSchema,
+  properties: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+});
+export type DbUpdatePageRequest = Schema.Schema.Type<
+  typeof DbUpdatePageRequestSchema
+>;
+export const DbUpdatePageResponseSchema = Schema.Unknown;
+export type DbUpdatePageResponse = unknown;
+
+// --- Dynamic database operations ---
+export const DbCreateDatabaseRequestSchema = Schema.Struct({
+  parentPageId: NonEmptyString,
+  title: NonEmptyString,
+  spec: NormalizedDatabaseSpecSchema,
+})
+
+export const DbCreateDatabaseResponseSchema = Schema.Struct({
+  databaseId: NonEmptyString,
+  properties: Schema.Array(
+    Schema.Struct({
+      name: Schema.String,
+      type: Schema.String,
+      config: Schema.optional(Schema.Unknown),
+    })
+  ),
+});
+
+export const DbGetSchemaRequestSchema = Schema.Struct({
+  databaseId: NonEmptyString,
+});
+
+export const DbGetSchemaResponseSchema = Schema.Struct({
+  schema: Schema.Unknown,
+  properties: Schema.Array(
+    Schema.Struct({
+      name: Schema.String,
+      type: Schema.String,
+      config: Schema.optional(Schema.Unknown),
+    })
+  ),
+});

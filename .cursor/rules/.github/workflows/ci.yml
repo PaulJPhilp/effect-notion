@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.x
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run -y tsc -p tsconfig.strict.json --noEmit
+
+      - name: Lint and format (Biome)
+        run: bunx @biomejs/biome check . --reporter=github
+
+      - name: Tests
+        run: bun test --coverage
+
+      - name: Forbidden patterns (Effect-only errors, no try/catch, no unsafe casts)
+        run: |
+          set -e
+          ! grep -R --line-number -E "throw new (Error|TypeError|RangeError|SyntaxError|ReferenceError)" src || (echo "Found throw new Error usage" && exit 1)
+          ! grep -R --line-number -E "\btry\b|\bcatch\s*\(" src || (echo "Found try/catch usage" && exit 1)
+          ! grep -R --line-number -E " as any\b" src || (echo "Found 'as any'" && exit 1)
+          ! grep -R --line-number -E " as unknown as " src || (echo "Found double assertion" && exit 1)
+          ! grep -R --line-number -E "@ts-ignore" src || (echo "Found @ts-ignore" && exit 1)
+  

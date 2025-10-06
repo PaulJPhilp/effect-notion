@@ -1,0 +1,116 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "files": {
+    "ignore": [
+      "node_modules",
+      "dist",
+      "build",
+      "coverage",
+      "**/*.snap",
+      "**/fixtures/**",
+      "**/.next/**",
+      "**/.vercel/**",
+      "**/.turbo/**",
+      "**/generated/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 80
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "error"
+      },
+      "performance": {
+        "noAccumulatingSpread": "warn"
+      },
+      "style": {
+        "useConst": "error",
+        "noParameterAssign": "error",
+        "useTemplate": "error",
+        "noNegationElse": "error",
+        "noVar": "error",
+        "useBlockStatements": "error",
+        "useExponentiationOperator": "error",
+        "useImportType": "error"
+      },
+      "suspicious": {
+        "noAssignInExpressions": "error",
+        "noAsyncPromiseExecutor": "error",
+        "noClassAssign": "error",
+        "noCompareNegZero": "error",
+        "noDebugger": "error",
+        "noDoubleEquals": "error",
+        "noDuplicateCase": "error",
+        "noDuplicateClassMembers": "error",
+        "noDuplicateObjectKeys": "error",
+        "noFunctionAssign": "error",
+        "noImportAssign": "error",
+        "noLabelVar": "error",
+        "noMisleadingCharacterClass": "error",
+        "noPrototypeBuiltins": "error",
+        "noShadowRestrictedNames": "error",
+        "noUnsafeDeclarationMerging": "error",
+        "noExplicitAny": "error",
+        "noExtraNonNullAssertion": "error"
+      }
+    }
+  },
+  "javascript": {
+    "globals": [
+      "Bun",
+      "describe",
+      "it",
+      "test",
+      "beforeAll",
+      "beforeEach",
+      "afterAll",
+      "afterEach",
+      "expect",
+      "vi"
+    ]
+  },
+  "overrides": [
+    {
+      "include": ["**/*.ts", "**/*.tsx"],
+      "linter": {
+        "rules": {
+          "recommended": true,
+          "style": {
+            "useImportType": "error"
+          },
+          "suspicious": {
+            "noExplicitAny": "error",
+            "noExtraNonNullAssertion": "error",
+            "noPrototypeBuiltins": "error",
+            "noShadowRestrictedNames": "error",
+            "noUnsafeDeclarationMerging": "error"
+          },
+          "complexity": {
+            "noExcessiveCognitiveComplexity": "error"
+          }
+        }
+      }
+    },
+    {
+      "include": ["scripts/**", "**/*.config.{ts,js}", "vitest.config.{ts,js}"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    }
+  ],
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git"
+  }
+}

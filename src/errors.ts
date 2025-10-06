@@ -1,6 +1,7 @@
 import * as HttpServerRequest from "@effect/platform/HttpServerRequest";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
 import { Effect } from "effect";
+import { getCurrentRequestId } from "./http/requestId.js";
 
 export interface ApiErrorBody {
   readonly error: string;
@@ -20,13 +21,16 @@ export function errorResponse(args: {
   readonly error: string;
   readonly detail?: unknown;
   readonly errors?: ReadonlyArray<string>;
+  readonly headers?: Readonly<Record<string, string>>;
 }) {
   return Effect.gen(function* () {
     const req = yield* HttpServerRequest.HttpServerRequest;
     const headers = req.headers;
-    const headerReqId =
-      (headers["x-request-id"] as string | undefined) ?? undefined;
-    const requestId = headerReqId || generateRequestId();
+
+    // Try to get request ID from FiberRef first, then header, then generate
+    const fiberReqId = yield* getCurrentRequestId();
+    const headerReqId = headers["x-request-id"] as string | undefined;
+    const requestId = fiberReqId || headerReqId || generateRequestId();
 
     const body: ApiErrorBody = {
       error: args.error,
@@ -36,9 +40,15 @@ export function errorResponse(args: {
       ...(args.errors && args.errors.length > 0 ? { errors: args.errors } : {}),
     };
 
+    const extraHeaders = args.headers ?? {};
+    const responseHeaders = {
+      ...extraHeaders,
+      "x-request-id": requestId,
+    } as const;
+
     return yield* HttpServerResponse.json(body, {
       status: args.status,
-      headers: { "x-request-id": requestId },
+      headers: responseHeaders,
     });
   });
 }
@@ -51,8 +61,10 @@ export const badRequest = (options?: {
     status: 400,
     code: "BadRequest",
     error: "Bad Request",
-    detail: options?.detail,
-    errors: options?.errors,
+    ...(options?.detail !== undefined ? { detail: options.detail } : {}),
+    ...(options?.errors && options.errors.length > 0
+      ? { errors: options.errors }
+      : {}),
   });
 
 export const unauthorized = (detail?: unknown) =>
@@ -60,7 +72,15 @@ export const unauthorized = (detail?: unknown) =>
     status: 401,
     code: "InvalidApiKey",
     error: "Invalid API Key",
-    detail,
+    ...(detail !== undefined ? { detail } : {}),
+  });
+
+export const forbidden = (detail?: unknown) =>
+  errorResponse({
+    status: 403,
+    code: "Forbidden",
+    error: "Forbidden",
+    ...(detail !== undefined ? { detail } : {}),
   });
 
 export const notFound = (detail?: unknown) =>
@@ -68,7 +88,29 @@ export const notFound = (detail?: unknown) =>
     status: 404,
     code: "NotFound",
     error: "Resource not found",
-    detail,
+    ...(detail !== undefined ? { detail } : {}),
+  });
+
+export const conflict = (detail?: unknown) =>
+  errorResponse({
+    status: 409,
+    code: "Conflict",
+    error: "Conflict",
+    ...(detail !== undefined ? { detail } : {}),
+  });
+
+export const tooManyRequests = (options?: {
+  readonly detail?: unknown;
+  readonly retryAfterSeconds?: number;
+}) =>
+  errorResponse({
+    status: 429,
+    code: "TooManyRequests",
+    error: "Too Many Requests",
+    ...(options?.detail !== undefined ? { detail: options.detail } : {}),
+    ...(options?.retryAfterSeconds !== undefined
+      ? { headers: { "retry-after": String(options.retryAfterSeconds) } as const }
+      : {}),
   });
 
 export const internalError = (detail?: unknown) =>
@@ -76,5 +118,21 @@ export const internalError = (detail?: unknown) =>
     status: 500,
     code: "InternalServerError",
     error: "Internal Server Error",
-    detail,
+    ...(detail !== undefined ? { detail } : {}),
+  });
+
+export const serviceUnavailable = (detail?: unknown) =>
+  errorResponse({
+    status: 503,
+    code: "ServiceUnavailable",
+    error: "Service Unavailable",
+    ...(detail !== undefined ? { detail } : {}),
+  });
+
+export const requestTimeout = (detail?: unknown) =>
+  errorResponse({
+    status: 504,
+    code: "RequestTimeout",
+    error: "Gateway Timeout",
+    ...(detail !== undefined ? { detail } : {}),
   });
