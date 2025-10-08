@@ -3,7 +3,7 @@
   "functions": {
     "api/index.ts": {
       "runtime": "@vercel/node@3.2.20",
-      "maxDuration": 60,
+      "maxDuration": 120,
       "includeFiles": "sources.config.production.json"
     }
   },
