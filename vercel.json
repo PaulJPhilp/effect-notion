@@ -3,7 +3,7 @@
   "functions": {
     "api/index.ts": {
       "runtime": "@vercel/node@3.2.20",
-      "maxDuration": 30,
+      "maxDuration": 60,
       "includeFiles": "sources.config.production.json"
     }
   },
@@ -12,6 +12,11 @@
     { "src": "/(.*)", "dest": "api/index.ts" }
   ],
   "env": {
-    "NOTION_SOURCES_CONFIG": "./sources.config.production.json"
+    "NOTION_SOURCES_CONFIG": "./sources.config.production.json",
+    "NODE_ENV": "production",
+    "LOG_LEVEL": "Info",
+    "CORS_ORIGIN": "*",
+    "CORS_ALLOWED_METHODS": "POST,GET,OPTIONS",
+    "CORS_ALLOWED_HEADERS": "Content-Type,Authorization,x-request-id"
   }
 }
