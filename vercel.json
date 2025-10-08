@@ -3,11 +3,15 @@
   "functions": {
     "api/index.ts": {
       "runtime": "@vercel/node@3.2.20",
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "sources.config.production.json"
     }
   },
   "routes": [
     { "src": "/api/(.*)", "dest": "api/index.ts" },
     { "src": "/(.*)", "dest": "api/index.ts" }
-  ]
+  ],
+  "env": {
+    "NOTION_SOURCES_CONFIG": "./sources.config.production.json"
+  }
 }
