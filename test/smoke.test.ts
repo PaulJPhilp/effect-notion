@@ -1,8 +1,8 @@
-// test/smoke.test.ts
-import { describe, it, expect } from "vitest";
 import { Effect } from "effect";
-import { NotionService } from "../src/NotionService.js";
+// test/smoke.test.ts
+import { describe, expect, it } from "vitest";
 import { NotionClient } from "../src/NotionClient.js";
+import { NotionService } from "../src/NotionService.js";
 
 // This is a smoke test that verifies the basic functionality of the application
 // It doesn't test all edge cases, but ensures the main components are working

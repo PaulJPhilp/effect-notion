@@ -5,7 +5,7 @@ export const RequestIdRef = requestIdRef;
 
 /**
  * Service for managing request IDs in a fiber-safe manner.
- * 
+ *
  * This service provides a FiberRef for storing request IDs that are
  * scoped to individual HTTP requests. Each request runs in its own
  * fiber, ensuring proper isolation.
@@ -19,7 +19,7 @@ export class RequestIdService extends Context.Tag("RequestIdService")<
   /**
    * Live layer that creates the RequestId service with a proper
    * FiberRef initialized within an Effect context.
-   * 
+   *
    * Note: Using Layer.sync with FiberRef.unsafeMake is acceptable here
    * because the FiberRef is created once at application startup and
    * doesn't require cleanup. The "unsafe" refers to creating it outside
@@ -32,10 +32,10 @@ export class RequestIdService extends Context.Tag("RequestIdService")<
 
 /**
  * Generates a random request ID.
- * 
+ *
  * Note: This uses Math.random() which is acceptable for request
  * tracing IDs (not cryptographic use).
- * 
+ *
  * @returns 8-character alphanumeric string
  */
 export function generateRequestId(): string {
@@ -44,7 +44,7 @@ export function generateRequestId(): string {
 
 /**
  * Extracts request ID from headers or generates a new one.
- * 
+ *
  * @param headers - HTTP request headers
  * @returns Request ID from x-request-id header or newly generated
  */
@@ -55,7 +55,7 @@ export function getRequestId(headers: Record<string, unknown>): string {
 
 /**
  * Gets the current request ID from the fiber-local context.
- * 
+ *
  * @returns Effect that yields the current request ID
  */
 export const getCurrentRequestId = (): Effect.Effect<
@@ -70,15 +70,15 @@ export const getCurrentRequestId = (): Effect.Effect<
 
 /**
  * Sets the request ID in the fiber-local context.
- * 
+ *
  * This should be called at the start of each request handler to
  * establish the request ID for logging and tracing.
- * 
+ *
  * @param requestId - The request ID to set
  * @returns Effect that sets the request ID
  */
 export const setCurrentRequestId = (
-  requestId: string
+  requestId: string,
 ): Effect.Effect<void, never, RequestIdService> =>
   Effect.gen(function* () {
     const service = yield* RequestIdService;
@@ -88,7 +88,7 @@ export const setCurrentRequestId = (
 // Helper to add request ID to response headers
 export function addRequestIdToHeaders(
   headers: Record<string, string | readonly string[] | undefined>,
-  requestId: string
+  requestId: string,
 ): Record<string, string | readonly string[] | undefined> {
   if (headers["x-request-id"]) {
     return headers;

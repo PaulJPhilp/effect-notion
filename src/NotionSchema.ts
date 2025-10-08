@@ -63,7 +63,7 @@ export const BlockSchema = S.Union(
   BulletedListItemSchema,
   CodeBlockSchema,
   // Keep Unknown last to prioritize specific literals during decoding
-  UnknownBlockSchema
+  UnknownBlockSchema,
 );
 export type Block = S.Schema.Type<typeof BlockSchema>;
 
@@ -123,7 +123,7 @@ export const NotionBlockInputSchema = S.Union(
   ParagraphInputSchema,
   Heading2InputSchema,
   BulletedListItemInputSchema,
-  CodeInputSchema
+  CodeInputSchema,
 );
 
 export type NotionBlockInput = S.Schema.Type<typeof NotionBlockInputSchema>;

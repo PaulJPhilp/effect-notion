@@ -1,7 +1,7 @@
-import { blogArticleAdapter } from "./articles/blog.adapter.js";
-import type { EntityAdapter } from "./Adapter.js";
 import type { BaseEntity } from "../logical/Common.js";
 import type { Kind } from "../registry/sources.js";
+import type { EntityAdapter } from "./Adapter.js";
+import { blogArticleAdapter } from "./articles/blog.adapter.js";
 
 /**
  * Registry of all available adapters by kind and name.
@@ -58,7 +58,7 @@ export const AdapterRegistry: Record<
  */
 export const getAdapter = (
   kind: Kind,
-  adapterName: string
+  adapterName: string,
 ): EntityAdapter<BaseEntity> | null => {
   const kindAdapters = AdapterRegistry[kind];
   if (!kindAdapters) {

@@ -2,11 +2,11 @@ import { NodeContext } from "@effect/platform-node";
 import * as HttpApp from "@effect/platform/HttpApp";
 import { Layer, Logger } from "effect";
 import { describe, expect, it } from "vitest";
-import { app } from "../src/router.js";
-import { AppConfigProviderLive } from "../src/config.js";
-import { RequestIdService } from "../src/http/requestId.js";
 import { NotionClient } from "../src/NotionClient.js";
 import { NotionService } from "../src/NotionService.js";
+import { AppConfigProviderLive } from "../src/config.js";
+import { RequestIdService } from "../src/http/requestId.js";
+import { app } from "../src/router.js";
 import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
 
 const { NOTION_API_KEY, NOTION_DB_ARTICLES_BLOG } = process.env;
@@ -30,22 +30,20 @@ const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer);
 describe.skipIf(!NOTION_API_KEY || !NOTION_DB_ARTICLES_BLOG)(
   "Articles Router CRUD (integration)",
   () => {
-    it(
-      "should create, get, update, and delete an article (blog)",
-      async () => {
-        const unique = `itest-${Date.now()}`;
+    it("should create, get, update, and delete an article (blog)", async () => {
+      const unique = `itest-${Date.now()}`;
 
-        // Create
-        const createRes = await testApp(
-          new Request("http://localhost/api/articles/create", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              source: "blog",
-              data: { name: `${unique} name`, description: "tmp item" },
-            }),
-          })
-        );
+      // Create
+      const createRes = await testApp(
+        new Request("http://localhost/api/articles/create", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            source: "blog",
+            data: { name: `${unique} name`, description: "tmp item" },
+          }),
+        }),
+      );
       if (createRes.status !== 201) {
         console.error("create body:", await createRes.text());
       }

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
 import * as S from "effect/Schema";
+import { describe, expect, it } from "vitest";
 import { BlockListResponseSchema } from "../src/NotionSchema.js";
 
 describe("NotionSchema BlockListResponse - unknown block types", () => {
@@ -29,10 +29,10 @@ describe("NotionSchema BlockListResponse - unknown block types", () => {
     expect(decoded.results.length).toBe(2);
 
     // Known block preserved
-    expect((decoded.results[0] as any).type).toBe("paragraph");
+    expect((decoded.results[0] as { type: string }).type).toBe("paragraph");
 
     // Unknown block passes through as generic with type string
-    const unk = decoded.results[1] as any;
+    const unk = decoded.results[1] as { type: string };
     expect(typeof unk.type).toBe("string");
     expect(unk.type).toBe("callout");
   });

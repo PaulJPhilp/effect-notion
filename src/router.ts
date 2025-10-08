@@ -18,13 +18,16 @@ import { Effect } from "effect";
 import type { NormalizedDatabaseSchema } from "./NotionSchema.js";
 import { AppConfig } from "./config.js";
 import { formatParseError } from "./domain/adapters/schema/Errors.js";
+import {
+  type SourceNotFoundError,
+  Sources,
+} from "./domain/registry/sources.js";
 import { badRequest, internalError, notFound, unauthorized } from "./errors.js";
 import {
   addRequestIdToHeaders,
   getRequestId,
   setCurrentRequestId,
 } from "./http/requestId.js";
-import { Sources, SourceNotFoundError } from "./domain/registry/sources.js";
 import applyArticlesRoutes from "./router/articles.js";
 import * as ApiSchema from "./schema.js";
 import {
@@ -58,14 +61,14 @@ let apiRouter = HttpRouter.empty.pipe(
       const body: ApiSchema.ListArticlesRequest =
         yield* HttpServerRequest.schemaBodyJson(
           ApiSchema.ListArticlesRequestSchema,
-          { onExcessProperty: "error" }
+          { onExcessProperty: "error" },
         );
       yield* Effect.logInfo(
         `list-articles: db=${body.databaseId}, titleProp=${String(
-          body.titlePropertyName
+          body.titlePropertyName,
         )}, pageSize=${String(body.pageSize)}, startCursor=${String(
-          body.startCursor
-        )}`
+          body.startCursor,
+        )}`,
       );
 
       const notionService = yield* NotionService;
@@ -75,7 +78,7 @@ let apiRouter = HttpRouter.empty.pipe(
       const errors = validateListArticlesRequestAgainstSchema(body, schema);
       if (errors.length > 0) {
         yield* Effect.logWarning(
-          `list-articles: validation errors=${JSON.stringify(errors)}`
+          `list-articles: validation errors=${JSON.stringify(errors)}`,
         );
         return yield* badRequest({ errors });
       }
@@ -86,25 +89,25 @@ let apiRouter = HttpRouter.empty.pipe(
         body.filter,
         body.sorts,
         body.pageSize,
-        body.startCursor
+        body.startCursor,
       );
       yield* Effect.logInfo(
         `list-articles: success count=${result.results.length}, hasMore=${
           result.hasMore
-        }, nextCursor=${String(result.nextCursor)}`
+        }, nextCursor=${String(result.nextCursor)}`,
       );
 
       // Add request ID to response headers
       return yield* HttpServerResponse.schemaJson(
-        ApiSchema.ListArticlesResponseSchema
+        ApiSchema.ListArticlesResponseSchema,
       )(result).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   // New: expose normalized database schema for clients
   HttpRouter.get(
@@ -117,10 +120,10 @@ let apiRouter = HttpRouter.empty.pipe(
 
       yield* Effect.logInfo("/api/get-database-schema: start");
       const query = yield* HttpServerRequest.schemaSearchParams(
-        ApiSchema.GetDatabaseSchemaRequestSchema
+        ApiSchema.GetDatabaseSchemaRequestSchema,
       );
       yield* Effect.logInfo(
-        `/api/get-database-schema: databaseId=${query.databaseId}`
+        `/api/get-database-schema: databaseId=${query.databaseId}`,
       );
       const notionService = yield* NotionService;
       const schema = yield* notionService.getDatabaseSchema(query.databaseId);
@@ -132,15 +135,15 @@ let apiRouter = HttpRouter.empty.pipe(
 
       // Add request ID to response headers
       return yield* HttpServerResponse.schemaJson(
-        ApiSchema.NormalizedDatabaseSchemaSchema
+        ApiSchema.NormalizedDatabaseSchemaSchema,
       )(out).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   // New: get article metadata (properties)
   HttpRouter.get(
@@ -153,10 +156,10 @@ let apiRouter = HttpRouter.empty.pipe(
 
       yield* Effect.logInfo("/api/get-article-metadata: start");
       const query = yield* HttpServerRequest.schemaSearchParams(
-        ApiSchema.GetArticleMetadataRequestSchema
+        ApiSchema.GetArticleMetadataRequestSchema,
       );
       yield* Effect.logInfo(
-        `/api/get-article-metadata: pageId=${query.pageId}`
+        `/api/get-article-metadata: pageId=${query.pageId}`,
       );
       const notionService = yield* NotionService;
       const meta = yield* notionService.getArticleMetadata(query.pageId);
@@ -165,15 +168,15 @@ let apiRouter = HttpRouter.empty.pipe(
 
       // Add request ID to response headers
       return yield* HttpServerResponse.schemaJson(
-        ApiSchema.GetArticleMetadataResponseSchema
+        ApiSchema.GetArticleMetadataResponseSchema,
       )(out).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   // New: router-based health check (no adapter bypass)
   HttpRouter.get(
@@ -186,10 +189,9 @@ let apiRouter = HttpRouter.empty.pipe(
 
       const cfg = yield* AppConfig;
       const hasApiKey = Boolean(
-        cfg.notionApiKey && cfg.notionApiKey.length > 0
+        cfg.notionApiKey && cfg.notionApiKey.length > 0,
       );
-      const shouldCheckNotion =
-        cfg.env !== "development" && hasApiKey;
+      const shouldCheckNotion = cfg.env !== "development" && hasApiKey;
 
       let notionOk: boolean | undefined = undefined;
       let error: string | null = null;
@@ -197,11 +199,7 @@ let apiRouter = HttpRouter.empty.pipe(
 
       if (shouldCheckNotion) {
         const candidate = Sources.all()[0];
-        if (!candidate) {
-          yield* Effect.logWarning(
-            "health: no configured Notion source to validate"
-          );
-        } else {
+        if (candidate) {
           checkedDatabaseId = candidate.databaseId;
           const notionService = yield* NotionService;
           const result = yield* notionService
@@ -211,14 +209,18 @@ let apiRouter = HttpRouter.empty.pipe(
             notionOk = false;
             error = String(result.left);
             yield* Effect.logWarning(
-              `health: notion check failed for db=${candidate.databaseId}`
+              `health: notion check failed for db=${candidate.databaseId}`,
             );
           } else {
             notionOk = true;
             yield* Effect.logDebug(
-              `health: notion check ok for db=${candidate.databaseId}`
+              `health: notion check ok for db=${candidate.databaseId}`,
             );
           }
+        } else {
+          yield* Effect.logWarning(
+            "health: no configured Notion source to validate",
+          );
         }
       }
 
@@ -237,7 +239,7 @@ let apiRouter = HttpRouter.empty.pipe(
         status: ok ? 200 : 503,
         headers: addRequestIdToHeaders({}, requestId),
       });
-    })
+    }),
   ),
   HttpRouter.get(
     "/api/get-article-content",
@@ -250,28 +252,28 @@ let apiRouter = HttpRouter.empty.pipe(
       yield* Effect.logInfo("/api/get-article-content: start");
       const query: ApiSchema.GetArticleContentRequest =
         yield* HttpServerRequest.schemaSearchParams(
-          ApiSchema.GetArticleContentRequestSchema
+          ApiSchema.GetArticleContentRequestSchema,
         );
       yield* Effect.logInfo(`/api/get-article-content: pageId=${query.pageId}`);
       const notionService = yield* NotionService;
       const content: string = yield* notionService.getArticleContent(
-        query.pageId
+        query.pageId,
       );
       yield* Effect.logInfo(
-        `/api/get-article-content: contentLength=${content.length}`
+        `/api/get-article-content: contentLength=${content.length}`,
       );
 
       // Add request ID to response headers
       return yield* HttpServerResponse.schemaJson(
-        ApiSchema.GetArticleContentResponseSchema
+        ApiSchema.GetArticleContentResponseSchema,
       )({ content }).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   // -----------------------------------
   // Dynamic DB endpoints (Notion-native)
@@ -283,9 +285,8 @@ let apiRouter = HttpRouter.empty.pipe(
       const requestId = getRequestId(req.headers);
       yield* setCurrentRequestId(requestId);
 
-      const body = yield* HttpServerRequest.schemaBodyJson(
-        DbQueryRequestSchema
-      );
+      const body =
+        yield* HttpServerRequest.schemaBodyJson(DbQueryRequestSchema);
       const notionService = yield* NotionService;
       const out = yield* notionService.dynamicQuery({
         databaseId: body.databaseId,
@@ -298,15 +299,15 @@ let apiRouter = HttpRouter.empty.pipe(
       });
 
       return yield* HttpServerResponse.schemaJson(DbQueryResponseSchema)(
-        out
+        out,
       ).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   HttpRouter.get(
     "/api/db/get",
@@ -316,20 +317,20 @@ let apiRouter = HttpRouter.empty.pipe(
       yield* setCurrentRequestId(requestId);
 
       const query = yield* HttpServerRequest.schemaSearchParams(
-        DbGetPageRequestSchema
+        DbGetPageRequestSchema,
       );
       const notionService = yield* NotionService;
       const page = yield* notionService.dynamicGetPage(query.pageId);
       return yield* HttpServerResponse.schemaJson(DbGetPageResponseSchema)(
-        page
+        page,
       ).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   HttpRouter.post(
     "/api/db/create",
@@ -339,7 +340,7 @@ let apiRouter = HttpRouter.empty.pipe(
       yield* setCurrentRequestId(requestId);
 
       const body = yield* HttpServerRequest.schemaBodyJson(
-        DbCreatePageRequestSchema
+        DbCreatePageRequestSchema,
       );
       const notionService = yield* NotionService;
       const page = yield* notionService.dynamicCreatePage({
@@ -347,15 +348,15 @@ let apiRouter = HttpRouter.empty.pipe(
         properties: body.properties,
       });
       return yield* HttpServerResponse.schemaJson(DbCreatePageResponseSchema)(
-        page
+        page,
       ).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   HttpRouter.post(
     "/api/db/update",
@@ -365,7 +366,7 @@ let apiRouter = HttpRouter.empty.pipe(
       yield* setCurrentRequestId(requestId);
 
       const body = yield* HttpServerRequest.schemaBodyJson(
-        DbUpdatePageRequestSchema
+        DbUpdatePageRequestSchema,
       );
       const notionService = yield* NotionService;
       const page = yield* notionService.dynamicUpdatePage({
@@ -373,15 +374,15 @@ let apiRouter = HttpRouter.empty.pipe(
         properties: body.properties,
       });
       return yield* HttpServerResponse.schemaJson(DbUpdatePageResponseSchema)(
-        page
+        page,
       ).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   HttpRouter.post(
     "/api/update-article-content",
@@ -394,12 +395,12 @@ let apiRouter = HttpRouter.empty.pipe(
       yield* Effect.logInfo("/api/update-article-content: start");
       const body: ApiSchema.UpdateArticleContentRequest =
         yield* HttpServerRequest.schemaBodyJson(
-          ApiSchema.UpdateArticleContentRequestSchema
+          ApiSchema.UpdateArticleContentRequestSchema,
         );
       yield* Effect.logInfo(
         `/api/update-article-content: pageId=${
           body.pageId
-        }, contentLength=${body.content.length}`
+        }, contentLength=${body.content.length}`,
       );
 
       const notionService = yield* NotionService;
@@ -411,7 +412,7 @@ let apiRouter = HttpRouter.empty.pipe(
         status: 204,
         headers: addRequestIdToHeaders({}, requestId),
       });
-    })
+    }),
   ),
   HttpRouter.post(
     "/api/db/create-database",
@@ -425,12 +426,12 @@ let apiRouter = HttpRouter.empty.pipe(
         DbCreateDatabaseRequestSchema,
         {
           onExcessProperty: "error",
-        }
+        },
       );
       yield* Effect.logInfo(
         `/api/db/create-database: parentPageId=${
           body.parentPageId
-        }, title=${body.title}`
+        }, title=${body.title}`,
       );
 
       const notionService = yield* NotionService;
@@ -463,18 +464,18 @@ let apiRouter = HttpRouter.empty.pipe(
         });
 
       return yield* HttpServerResponse.schemaJson(
-        DbCreateDatabaseResponseSchema
+        DbCreateDatabaseResponseSchema,
       )({
         databaseId: result.databaseId,
         properties: result.properties,
       }).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   HttpRouter.get(
     "/api/db/get-schema",
@@ -485,10 +486,10 @@ let apiRouter = HttpRouter.empty.pipe(
 
       yield* Effect.logInfo("/api/db/get-schema: start");
       const query = yield* HttpServerRequest.schemaSearchParams(
-        DbGetSchemaRequestSchema
+        DbGetSchemaRequestSchema,
       );
       yield* Effect.logInfo(
-        `/api/db/get-schema: databaseId=${query.databaseId}`
+        `/api/db/get-schema: databaseId=${query.databaseId}`,
       );
 
       const notionService = yield* NotionService;
@@ -500,19 +501,19 @@ let apiRouter = HttpRouter.empty.pipe(
       }).pipe(
         Effect.map((response) =>
           HttpServerResponse.setHeaders(
-            addRequestIdToHeaders(response.headers, requestId)
-          )(response)
-        )
+            addRequestIdToHeaders(response.headers, requestId),
+          )(response),
+        ),
       );
-    })
+    }),
   ),
   // Fallback: ensure unmatched routes do not raise RouteNotFound
   HttpRouter.all(
     "/*",
     Effect.gen(function* () {
       return yield* notFound();
-    })
-  )
+    }),
+  ),
 );
 
 // Compose feature routers
@@ -555,7 +556,7 @@ const routerWithErrors = apiRouter.pipe(
     SourceNotFoundError: (e: SourceNotFoundError) =>
       Effect.gen(function* () {
         yield* Effect.logWarning(
-          `catchTags: SourceNotFoundError kind=${e.kind} alias=${e.alias}`
+          `catchTags: SourceNotFoundError kind=${e.kind} alias=${e.alias}`,
         );
         return yield* notFound({
           detail: `Source not found: ${e.kind}/${e.alias}`,
@@ -585,8 +586,8 @@ const routerWithErrors = apiRouter.pipe(
       const detail = e instanceof Error ? e.message : String(e);
       yield* Effect.logError(`catchAll: ${req.method} ${req.url} ${detail}`);
       return yield* internalError(detail);
-    })
-  )
+    }),
+  ),
 );
 
 // Expose the router as the default HttpApp

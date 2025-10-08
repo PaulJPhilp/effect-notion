@@ -3,12 +3,12 @@ import * as HttpApp from "@effect/platform/HttpApp";
 import * as HttpRouter from "@effect/platform/HttpRouter";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
 import * as dotenv from "dotenv";
-import { Effect, Layer, Logger, LogLevel } from "effect";
+import { Effect, Layer, LogLevel, Logger } from "effect";
 import { NotionClient } from "../src/NotionClient.js";
 import { NotionService } from "../src/NotionService.js";
 import { AppConfigProviderLive } from "../src/config.js";
-import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
 import { app } from "../src/router.js";
+import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
 
 dotenv.config();
 
@@ -18,7 +18,7 @@ const FullLayer = Layer.mergeAll(
   AppConfigProviderLive,
   ArticlesRepository.Default,
   NotionClient.Default,
-  NotionService.Default,
+  NotionService.Default
 );
 
 const MinimalLayer = Layer.mergeAll(
@@ -27,7 +27,7 @@ const MinimalLayer = Layer.mergeAll(
   AppConfigProviderLive,
   ArticlesRepository.Default,
   NotionClient.Default,
-  NotionService.Default,
+  NotionService.Default
 );
 
 // Pre-response logging handler (logs before platform converts response)
@@ -47,14 +47,17 @@ const preLog: HttpApp.PreResponseHandler = (req, res) =>
     return res;
   });
 
-const appWithPre = HttpApp.withPreResponseHandler(app, preLog) as any;
+const appWithPre = HttpApp.withPreResponseHandler(
+  app,
+  preLog
+) as unknown as HttpApp.Default<never, never>;
 const { handler: fullHandler } = HttpApp.toWebHandlerLayer(
   appWithPre,
-  FullLayer,
+  FullLayer
 );
 const { handler: minimalHandler } = HttpApp.toWebHandlerLayer(
   appWithPre,
-  MinimalLayer,
+  MinimalLayer
 );
 
 // Build a minimal app directly to sanity-check adapter

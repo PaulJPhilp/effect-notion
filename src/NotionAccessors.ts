@@ -60,7 +60,9 @@ export const getRichText = (
   propertyName: string
 ): string | null => {
   const prop = page.properties[propertyName];
-  if (!prop || typeof prop !== "object") return null;
+  if (!prop || typeof prop !== "object") {
+    return null;
+  }
 
   if (hasTitleArray(prop)) {
     return prop.title.map((t) => t.plain_text).join("");
@@ -83,7 +85,9 @@ export const getRichTextOpt = (
 
 export const getSelect = (page: Page, propertyName: string): string | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const sel = (p as NotionProperty)?.select as
     | { name?: string }
     | null
@@ -104,12 +108,16 @@ export const getDate = (
   propertyName: string
 ): { start: string; end: string | null; timezone?: string } | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const d = (p as NotionProperty)?.date as
     | { start: string; end: string | null; time_zone?: string }
     | null
     | undefined;
-  if (!d) return null;
+  if (!d) {
+    return null;
+  }
   return {
     start: d.start,
     end: d.end ?? null,
@@ -127,7 +135,9 @@ export const getDateOpt = (
 
 export const getNumber = (page: Page, propertyName: string): number | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const n = (p as NotionProperty)?.number as number | null | undefined;
   return typeof n === "number" ? n : null;
 };
@@ -145,12 +155,16 @@ export const getMultiSelect = (
   propertyName: string
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const arr = (p as NotionProperty)?.multi_select as
     | ReadonlyArray<{ name?: string }>
     | null
     | undefined;
-  if (!arr || arr.length === 0) return null;
+  if (!arr || arr.length === 0) {
+    return null;
+  }
   return arr.map((o) => o?.name).filter(Boolean) as ReadonlyArray<string>;
 };
 
@@ -167,7 +181,9 @@ export const getCheckbox = (
   propertyName: string
 ): boolean | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const b = (p as NotionProperty)?.checkbox as boolean | null | undefined;
   return typeof b === "boolean" ? b : null;
 };
@@ -182,7 +198,9 @@ export const getCheckboxOpt = (
 
 export const getUrl = (page: Page, propertyName: string): string | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const u = (p as NotionProperty)?.url as string | null | undefined;
   return typeof u === "string" && u.length > 0 ? u : null;
 };
@@ -197,7 +215,9 @@ export const getUrlOpt = (
 
 export const getStatus = (page: Page, propertyName: string): string | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const s = (p as NotionProperty)?.status as
     | { name?: string }
     | null
@@ -218,12 +238,16 @@ export const getPeopleIds = (
   propertyName: string
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const arr = (p as NotionProperty)?.people as
     | ReadonlyArray<{ id: string }>
     | null
     | undefined;
-  if (!arr || arr.length === 0) return null;
+  if (!arr || arr.length === 0) {
+    return null;
+  }
   return arr.map((x) => x.id);
 };
 
@@ -240,12 +264,16 @@ export const getRelationIds = (
   propertyName: string
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const arr = (p as NotionProperty)?.relation as
     | ReadonlyArray<{ id: string }>
     | null
     | undefined;
-  if (!arr || arr.length === 0) return null;
+  if (!arr || arr.length === 0) {
+    return null;
+  }
   return arr.map((x) => x.id);
 };
 
@@ -262,15 +290,17 @@ export const getFileUrls = (
   propertyName: string
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
 
   // Type guard to check if object has file property
-  const hasFile = (obj: any): obj is { file?: { url?: string } } =>
-    obj && typeof obj === "object" && "file" in obj;
+  const hasFile = (obj: unknown): obj is { file?: { url?: string } } =>
+    typeof obj === "object" && obj !== null && "file" in obj;
 
   // Type guard to check if object has external property
-  const hasExternal = (obj: any): obj is { external?: { url?: string } } =>
-    obj && typeof obj === "object" && "external" in obj;
+  const hasExternal = (obj: unknown): obj is { external?: { url?: string } } =>
+    typeof obj === "object" && obj !== null && "external" in obj;
 
   const arr = (p as NotionProperty)?.files as
     | ReadonlyArray<
@@ -278,12 +308,15 @@ export const getFileUrls = (
       >
     | null
     | undefined;
-  if (!arr || arr.length === 0) return null;
+  if (!arr || arr.length === 0) {
+    return null;
+  }
   const urls = arr
     .map((f) => {
       if (hasFile(f)) {
         return f.file?.url;
-      } else if (hasExternal(f)) {
+      }
+      if (hasExternal(f)) {
         return f.external?.url;
       }
       return undefined;
@@ -311,7 +344,9 @@ export const getFormula = (
   propertyName: string
 ): FormulaValue | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const f = (p as NotionProperty)?.formula as
     | {
         type?: string;
@@ -322,7 +357,9 @@ export const getFormula = (
       }
     | null
     | undefined;
-  if (!f || typeof f.type !== "string") return null;
+  if (!f || typeof f.type !== "string") {
+    return null;
+  }
   switch (f.type) {
     case "string":
       return f.string != null ? { kind: "string", value: f.string } : null;
@@ -361,7 +398,9 @@ export const getRollup = (
   propertyName: string
 ): RollupValue | null => {
   const p = page?.properties?.[propertyName];
-  if (!p || typeof p !== "object") return null;
+  if (!p || typeof p !== "object") {
+    return null;
+  }
   const r = (p as NotionProperty)?.rollup as
     | {
         type?: string;
@@ -371,7 +410,9 @@ export const getRollup = (
       }
     | null
     | undefined;
-  if (!r || typeof r.type !== "string") return null;
+  if (!r || typeof r.type !== "string") {
+    return null;
+  }
   switch (r.type) {
     case "number":
       return typeof r.number === "number"
@@ -483,10 +524,15 @@ export const getTitleFromPage = (
   overrideTitleName?: string
 ): string => {
   const name = schema.titlePropertyName ?? overrideTitleName;
-  if (!name) return "Untitled";
+  if (!name) {
+    return "Untitled";
+  }
   const p = page?.properties?.[name];
-  if (hasTitleArray(p) && p.title[0]) return p.title[0].plain_text;
-  if (hasRichTextArray(p) && p.rich_text[0])
+  if (hasTitleArray(p) && p.title[0]) {
+    return p.title[0].plain_text;
+  }
+  if (hasRichTextArray(p) && p.rich_text[0]) {
     return p.rich_text.map((t) => t.plain_text).join("");
+  }
   return "Untitled";
 };

@@ -14,6 +14,7 @@ type/code generation.
 This server is ideal for developers building front-end applications (e.g., blogs, documentation sites, personal portfolios) that use Notion as a CMS. It acts as a secure and robust backend layer, abstracting away the complexities of the Notion API and preventing the exposure of API keys on the client-side.  Think of it as a "smart bridge" that makes Notion work like a traditional database while keeping all the benefits of Notion's interface and collaboration features.
 
 ## Key Benefits
+
 Security: API keys never leave your server
 Type Safety: Full TypeScript support with generated types
 Flexibility: Decouples your app from Notion's exact schema
@@ -43,6 +44,7 @@ This project follows Effect-TS best practices throughout:
 - **Metrics & Tracing**: Built-in observability with Effect.Metric and Effect.withSpan
 
 **Key Services:**
+
 - `RequestIdService` - Request correlation IDs (FiberRef-based)
 - `LogicalFieldOverridesService` - Database field mapping configuration
 - `NotionClient` - Low-level Notion API client with retry
@@ -79,6 +81,7 @@ how to add new field mappings.
   Effect Node HTTP server integration.
 
 Logging & CORS:
+
 - Both entry points enable structured logging via `HttpMiddleware.logger`.
 - CORS is enabled; configure via `CORS_ORIGIN`.
 
@@ -87,22 +90,26 @@ Logging & CORS:
 The application follows Effect-TS best practices for production observability:
 
 ### Metrics (Effect.Metric)
+
 - **Endpoint**: `/api/metrics` provides real-time metrics in Prometheus format
 - **Fiber-safe**: Uses Effect.Metric for concurrent-safe counters and histograms
 - **Automatic**: Tracks Notion API requests, durations, and errors
 
 ### Distributed Tracing (Effect.withSpan)
+
 - **OpenTelemetry Ready**: All CRUD operations instrumented with Effect.withSpan
 - **Rich Context**: Spans include operation parameters for debugging
 - **Integrations**: Works with Jaeger, Datadog, Zipkin, and other OpenTelemetry exporters
 
 ### Retry & Error Handling
+
 - **Effect.retry**: Automatic retry with Schedule-based policies
 - **Exponential Backoff**: Configurable delays with jitter
 - **Type-Safe Errors**: Tagged errors with Effect.catchAll and catchTags
 - **Request IDs**: Every request includes a unique ID for log correlation
 
-### Architecture
+### Effect Service Architecture
+
 - **Service Patterns**: All dependencies modeled as Effect services with Layers
 - **Immutable State**: No global mutable state, fiber-safe throughout
 - **Clock Service**: Deterministic time handling for testing
@@ -192,13 +199,17 @@ Loaded at startup in this order (later overrides earlier):
 ## Quick Start
 
 1. **Install dependencies**
+
    ```bash
    bun install
    ```
+
 2. **Run the dev server (Bun)**
+
    ```bash
    bun run dev
    ```
+
 3. Server runs at `http://localhost:3000` (or your `PORT`).
 
 Useful scripts from `package.json`:
@@ -394,32 +405,40 @@ These endpoints operate on logical "articles" and are parameterized by a
 with environment variable substitution.
 
 **Example sources:**
+
 - `blog` → uses `${NOTION_DB_ARTICLES_BLOG}` from environment
 - Add more by editing `sources.config.json` (see [Source Configuration Guide](./docs/SOURCES_CONFIG.md))
 
 All POST requests require `Content-Type: application/json`.
 
 • List
+
 - Endpoint: `POST /api/articles/list`
 - Body:
+
 ```json
 { "source": "blog", "pageSize": 20 }
 ```
 
 • Get by id
+
 - Endpoint: `GET /api/articles/get`
 - Query: `source=blog&pageId=<PAGE_ID>`
 
 • Create
+
 - Endpoint: `POST /api/articles/create`
 - Body (partial fields are allowed):
+
 ```json
 { "source": "blog", "data": { "name": "New Article" } }
 ```
 
 • Update
+
 - Endpoint: `POST /api/articles/update`
 - Body (partial fields are allowed):
+
 ```json
 {
   "source": "blog",
@@ -429,13 +448,16 @@ All POST requests require `Content-Type: application/json`.
 ```
 
 • Delete (archive)
+
 - Endpoint: `POST /api/articles/delete`
 - Body:
+
 ```json
 { "source": "blog", "pageId": "<PAGE_ID>" }
 ```
 
 Notes:
+
 - Field shapes align with `src/domain/logical/Common.ts` (`BaseEntity`,
   `ListParams`).
 - The Notion mapping is handled by the source adapter, e.g.,
@@ -447,7 +469,7 @@ Notes:
 
 You can construct complex filters based on the Notion API's filter object structure.
 
-**Example: Compound filter**
+#### Example: Compound filter
 
 This request fetches entries where "Status" is "In Progress" AND "Priority" is "High".
 
@@ -501,6 +523,7 @@ bun test
 ```
 
 The project uses Vitest for testing with the following configuration:
+
 - Test environment: Node.js
 - Test files: `test/**/*.test.ts`
 - Excludes compiled JavaScript and node_modules

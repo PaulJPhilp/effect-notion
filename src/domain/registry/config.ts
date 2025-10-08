@@ -1,6 +1,6 @@
-import { Effect, Schema } from "effect";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { Effect, Schema } from "effect";
 import type { Kind } from "./sources.js";
 
 /**
@@ -17,7 +17,7 @@ const CapabilitiesSchema = Schema.Struct({
 const SourceConfigItemSchema = Schema.Struct({
   alias: Schema.String.pipe(
     Schema.pattern(/^[a-z][a-z0-9-]*$/),
-    Schema.minLength(1)
+    Schema.minLength(1),
   ),
   kind: Schema.Literal("articles", "changelog", "projects"),
   databaseId: Schema.String.pipe(Schema.minLength(1)),
@@ -49,7 +49,9 @@ const SourcesConfigSchema = Schema.Struct({
 /**
  * TypeScript types derived from schemas
  */
-export type SourceConfigItem = Schema.Schema.Type<typeof SourceConfigItemSchema>;
+export type SourceConfigItem = Schema.Schema.Type<
+  typeof SourceConfigItemSchema
+>;
 export type SourcesConfig = Schema.Schema.Type<typeof SourcesConfigSchema>;
 export type Capabilities = Schema.Schema.Type<typeof CapabilitiesSchema>;
 
@@ -70,7 +72,9 @@ const substituteEnvVars = (value: string): string => {
   return value.replace(/\$\{([^}]+)\}/g, (_, envVar) => {
     const envValue = process.env[envVar];
     if (!envValue) {
-      console.warn(`[Config] Environment variable ${envVar} not set, using empty string`);
+      console.warn(
+        `[Config] Environment variable ${envVar} not set, using empty string`,
+      );
       return "";
     }
     return envValue;
@@ -97,7 +101,7 @@ const substituteEnvVars = (value: string): string => {
  * ```
  */
 export const loadSourcesConfig = (
-  configPath: string = "./sources.config.json"
+  configPath = "./sources.config.json",
 ): Effect.Effect<SourcesConfig, Error> =>
   Effect.gen(function* () {
     // Resolve to absolute path
@@ -110,17 +114,20 @@ export const loadSourcesConfig = (
       rawConfig = JSON.parse(fileContent);
     } catch (err) {
       return yield* Effect.fail(
-        new Error(`Failed to read config file at ${absolutePath}: ${String(err)}`)
+        new Error(
+          `Failed to read config file at ${absolutePath}: ${String(err)}`,
+        ),
       );
     }
 
     // Validate schema
-    const parseResult = Schema.decodeUnknownEither(SourcesConfigSchema)(rawConfig);
+    const parseResult =
+      Schema.decodeUnknownEither(SourcesConfigSchema)(rawConfig);
     if (parseResult._tag === "Left") {
       return yield* Effect.fail(
         new Error(
-          `Invalid config schema in ${absolutePath}: ${String(parseResult.left)}`
-        )
+          `Invalid config schema in ${absolutePath}: ${String(parseResult.left)}`,
+        ),
       );
     }
 
@@ -170,7 +177,7 @@ export const loadSourcesConfig = (
  */
 export const applyDefaults = (
   item: SourceConfigItem,
-  defaults: unknown
+  defaults: unknown,
 ): {
   alias: string;
   kind: Kind;
@@ -180,7 +187,15 @@ export const applyDefaults = (
   description?: string;
 } => {
   // Cast defaults to a more flexible type for lookup
-  const defaultsMap = defaults as Record<string, { adapter?: string; capabilities?: { update: boolean; delete: boolean } }> | undefined;
+  const defaultsMap = defaults as
+    | Record<
+        string,
+        {
+          adapter?: string;
+          capabilities?: { update: boolean; delete: boolean };
+        }
+      >
+    | undefined;
   const kindDefaults = defaultsMap?.[item.kind];
 
   // Fallback defaults if nothing specified
@@ -195,8 +210,14 @@ export const applyDefaults = (
     databaseId: item.databaseId,
     adapter: item.adapter || kindDefaults?.adapter || "default",
     capabilities: {
-      update: item.capabilities?.update ?? kindDefaults?.capabilities?.update ?? fallbackCapabilities.update,
-      delete: item.capabilities?.delete ?? kindDefaults?.capabilities?.delete ?? fallbackCapabilities.delete,
+      update:
+        item.capabilities?.update ??
+        kindDefaults?.capabilities?.update ??
+        fallbackCapabilities.update,
+      delete:
+        item.capabilities?.delete ??
+        kindDefaults?.capabilities?.delete ??
+        fallbackCapabilities.delete,
     },
   };
 
@@ -217,19 +238,19 @@ export const applyDefaults = (
  * @returns Effect that succeeds if config is valid, fails with descriptive error otherwise
  */
 export const validateConfig = (
-  config: SourcesConfig
+  config: SourcesConfig,
 ): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
     // Filter out sources with empty database IDs
     const validSources = config.sources.filter(
-      (s) => s.databaseId && s.databaseId.trim().length > 0
+      (s) => s.databaseId && s.databaseId.trim().length > 0,
     );
 
     if (validSources.length === 0) {
       return yield* Effect.fail(
         new Error(
-          "No valid sources configured. Ensure environment variables are set for database IDs."
-        )
+          "No valid sources configured. Ensure environment variables are set for database IDs.",
+        ),
       );
     }
 
@@ -238,7 +259,7 @@ export const validateConfig = (
     for (const source of config.sources) {
       if (aliases.has(source.alias)) {
         return yield* Effect.fail(
-          new Error(`Duplicate source alias found: ${source.alias}`)
+          new Error(`Duplicate source alias found: ${source.alias}`),
         );
       }
       aliases.add(source.alias);

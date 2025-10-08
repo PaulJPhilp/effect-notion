@@ -18,7 +18,9 @@ describe("Request ID Middleware", () => {
         // Verify it can be retrieved
         const retrievedId = yield* getCurrentRequestId();
         expect(retrievedId).toBe(testRequestId);
-      }).pipe(Effect.provide(Layer.provideMerge(Layer.empty, RequestIdService.Live)))
+      }).pipe(
+        Effect.provide(Layer.provideMerge(Layer.empty, RequestIdService.Live)),
+      ),
     );
   });
 

@@ -1,17 +1,17 @@
-import { describe, it, expect } from "vitest";
-import * as S from "effect/Schema";
 import { Either } from "effect";
+import * as S from "effect/Schema";
+import { describe, expect, it } from "vitest";
 import {
-  PlainTextFromTitle,
-  PlainTextFromRichText,
-  UrlListFromFiles,
-  PeopleIdsFromPeople,
-  RelationIdsFromRelation,
   DateFromNotionDate,
+  type FieldCodec,
   NumberFromFormula,
+  PeopleIdsFromPeople,
+  PlainTextFromRichText,
+  PlainTextFromTitle,
+  RelationIdsFromRelation,
+  UrlListFromFiles,
   defineDomainWithNotion,
   makeConfigFromAnnotations,
-  type FieldCodec,
 } from "../src/domain/adapters/schema/index";
 
 // Keep lines <= 80 chars per user preference
@@ -71,6 +71,8 @@ describe("Config annotations -> auto config", () => {
       title: [{ type: "text", text: { content: "X" } }],
     });
     expect(Either.isRight(titleDecoded)).toBe(true);
-    if (Either.isRight(titleDecoded)) expect(titleDecoded.right).toBe("X");
+    if (Either.isRight(titleDecoded)) {
+      expect(titleDecoded.right).toBe("X");
+    }
   });
 });

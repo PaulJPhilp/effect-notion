@@ -671,7 +671,7 @@ describe("NotionAccessors Comprehensive Tests", () => {
       const result = getPropertyFromPage(
         mockPage,
         mockSchema,
-        "MissingProperty"
+        "MissingProperty",
       );
       expect(result).toEqual({
         type: "unknown",

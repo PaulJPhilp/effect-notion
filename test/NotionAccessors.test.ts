@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  getTitleFromPage,
+  getDate,
+  getNumber,
   getPropertyFromPage,
   getRichText,
   getSelect,
-  getDate,
-  getNumber,
+  getTitleFromPage,
 } from "../src/NotionAccessors.js";
 import type { NormalizedDatabaseSchema } from "../src/NotionSchema.js";
 

@@ -154,7 +154,7 @@ export const testUtils = {
   retry: async <T>(
     fn: () => Promise<T>,
     maxAttempts = 3,
-    baseDelay = 100
+    baseDelay = 100,
   ): Promise<T> => {
     let lastError: Error | undefined;
 

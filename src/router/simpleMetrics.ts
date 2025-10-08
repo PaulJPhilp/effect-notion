@@ -6,20 +6,18 @@ import {
   addRequestIdToHeaders,
   getRequestId,
   setCurrentRequestId,
+  type RequestIdService,
 } from "../http/requestId.js";
 
 /**
  * Applies metrics routes to the router.
- * 
+ *
  * Provides a `/api/metrics` endpoint that returns Effect metrics
  * in a simple text format.
  */
-export const applySimpleMetricsRoutes = <
-  // biome-ignore lint/suspicious/noExplicitAny: generic router type
-  T extends { pipe: (...fns: Array<(self: any) => any>) => any }
->(
-  router: T
-): T =>
+export const applySimpleMetricsRoutes = <E, R>(
+  router: HttpRouter.HttpRouter<E, R>
+): HttpRouter.HttpRouter<E, R | RequestIdService> =>
   router.pipe(
     HttpRouter.get(
       "/api/metrics",
@@ -31,7 +29,7 @@ export const applySimpleMetricsRoutes = <
 
         // Get Effect metrics snapshot
         const snapshot = yield* Metric.snapshot;
-        
+
         // Convert to simple text format
         // Note: Effect metrics are more structured than this simple
         // format. For production, consider using a proper metrics

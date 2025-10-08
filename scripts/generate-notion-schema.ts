@@ -34,19 +34,24 @@ function parseArgs(argv: string[]): Partial<CliOpts> {
   const out: Partial<CliOpts> = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--apiKey") out.apiKey = argv[++i];
-    else if (a === "--databaseId") out.databaseId = argv[++i];
-    else if (a === "--out") out.out = argv[++i];
-    else if (a === "--emitEffectSchema") out.emitEffectSchema = true;
-    else if (a === "--emitDomainSchema") out.emitDomainSchema = true;
+    if (a === "--apiKey") {
+      out.apiKey = argv[++i];
+    } else if (a === "--databaseId") {
+      out.databaseId = argv[++i];
+    } else if (a === "--out") {
+      out.out = argv[++i];
+    } else if (a === "--emitEffectSchema") {
+      out.emitEffectSchema = true;
+    } else if (a === "--emitDomainSchema") {
+      out.emitDomainSchema = true;
+    }
   }
   return out;
 }
 
 const args = parseArgs(process.argv.slice(2));
 const apiKey = args.apiKey ?? process.env.NOTION_API_KEY ?? "";
-const databaseId =
-  args.databaseId ?? process.env.NOTION_DATABASE_ID ?? "";
+const databaseId = args.databaseId ?? process.env.NOTION_DATABASE_ID ?? "";
 const outPath = args.out ?? "src/generated/notion-schema.ts";
 const emitEffectSchema = Boolean(args.emitEffectSchema);
 const emitDomainSchema = Boolean(args.emitDomainSchema);
@@ -65,14 +70,14 @@ if (!databaseId) {
 export type NotionDb = {
   id: string;
   last_edited_time: string;
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
 };
 
 export async function fetchDatabaseSchema(): Promise<NotionDb> {
   const url = `https://api.notion.com/v1/databases/${databaseId}`;
   const res = await fetch(url, {
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Notion-Version": "2022-06-28",
       "Content-Type": "application/json",
     },
@@ -85,24 +90,26 @@ export async function fetchDatabaseSchema(): Promise<NotionDb> {
 }
 
 export function normalize(db: NotionDb) {
-  const entries = Object.entries(db.properties).map(([name, cfg]) => ({
-    name,
-    type: (cfg?.type as string) ?? "unknown",
-    cfg,
-  }));
-  const title = entries.find((p) => p.type === "title")?.name ?? null;
-  return { entries, title } as const;
+  const entries = Object.entries(db.properties).map(([name, cfg]) => {
+    const type =
+      typeof cfg === "object" && cfg !== null && "type" in cfg
+        ? (cfg as { type?: unknown }).type as string ?? "unknown"
+        : "unknown"
+    return { name, type, cfg }
+  })
+  const title = entries.find((p) => p.type === "title")?.name ?? null
+  return { entries, title } as const
 }
 
 function genTypesModule(
   databaseId: string,
   lastEditedTime: string,
   props: ReadonlyArray<{ name: string; type: string }>,
-  title: string | null,
+  title: string | null
 ) {
-  const namesUnion = props.map((p) => `'${p.name.replace(/'/g, "\\'")}'`).join(
-    " | ",
-  );
+  const namesUnion = props
+    .map((p) => `'${p.name.replace(/'/g, "\\'")}'`)
+    .join(" | ");
   const propArray = props
     .map((p) => `  { name: '${p.name}', type: '${p.type}' as const }`)
     .join(",\n");
@@ -133,90 +140,101 @@ export type GeneratedPropertyMap = {
 // --- Domain-level Effect Schema generation ---
 // Build a best-effort mapping from Notion property types to Effect Schema.
 // Selects and multi_selects emit literal unions from options where present.
+
+const litUnion = (names: string[]) =>
+  names.map((n) => `'${String(n).replace(/'/g, "\\'")}'`).join(", ");
+
+function getSelectSchema(cfg: unknown): string {
+  const opts =
+    (
+      (cfg as Record<string, unknown>)?.select as
+        | { options?: Array<{ name: string }> }
+        | undefined
+    )?.options ?? [];
+  if (opts.length > 0) {
+    const lits = litUnion(opts.map((o) => o.name));
+    return `S.Union(${lits.length ? `S.Literal(${lits})` : ""}, S.Undefined)`;
+  }
+  return "S.Union(S.String, S.Undefined)";
+}
+
+function getMultiSelectSchema(cfg: unknown): string {
+  const opts =
+    (
+      (cfg as Record<string, unknown>)?.multi_select as
+        | { options?: Array<{ name: string }> }
+        | undefined
+    )?.options ?? [];
+  if (opts.length > 0) {
+    const lits = litUnion(opts.map((o) => o.name));
+    return `S.Array(S.Literal(${lits}))`;
+  }
+  return "S.Array(S.String)";
+}
+
+function getFormulaSchema(cfg: unknown): string {
+  const ftype: string | undefined = (
+    (cfg as Record<string, unknown>)?.formula as { type?: string } | undefined
+  )?.type;
+  if (ftype === "number") {
+    return "S.Union(S.Number, S.Undefined)";
+  }
+  if (ftype === "string") {
+    return "S.Union(S.String, S.Undefined)";
+  }
+  if (ftype === "boolean") {
+    return "S.Union(S.Boolean, S.Undefined)";
+  }
+  if (ftype === "date") {
+    return "S.Union(S.DateFromSelf, S.Undefined)";
+  }
+  return "S.Unknown";
+}
+
+function getSchemaForProperty(e: {
+  name: string;
+  type: string;
+  cfg: unknown;
+}): string {
+  const t = e.type;
+  const cfg = e.cfg ?? {};
+
+  switch (t) {
+    case "title":
+    case "rich_text":
+      return "S.String";
+    case "number":
+      return "S.Union(S.Number, S.Undefined)";
+    case "checkbox":
+      return "S.Boolean";
+    case "date":
+      return "S.Union(S.DateFromSelf, S.Undefined)";
+    case "url":
+    case "email":
+      return "S.Union(S.String, S.Undefined)";
+    case "files":
+    case "people":
+    case "relation":
+      return "S.Array(S.String)";
+    case "select":
+      return getSelectSchema(cfg);
+    case "multi_select":
+      return getMultiSelectSchema(cfg);
+    case "formula":
+      return getFormulaSchema(cfg);
+    default:
+      return "S.Unknown";
+  }
+}
+
 export function genDomainSchemaModule(db: NotionDb) {
   const { entries, title } = normalize(db);
 
   const fields: string[] = [];
 
   for (const e of entries) {
-    const key = e.name.replace(/`/g, "\`");
-    const t = e.type;
-    const cfg = e.cfg ?? {};
-
-    // Helper to join union literals within 80-char width as best as possible
-    const litUnion = (names: string[]) =>
-      names
-        .map((n) => `'${String(n).replace(/'/g, "\\'")}'`)
-        .join(", ");
-
-    let schema = "S.Unknown";
-    switch (t) {
-      case "title":
-      case "rich_text":
-        schema = "S.String";
-        break;
-      case "number":
-        schema = "S.Union(S.Number, S.Undefined)";
-        break;
-      case "checkbox":
-        schema = "S.Boolean";
-        break;
-      case "date":
-        schema = "S.Union(S.DateFromSelf, S.Undefined)";
-        break;
-      case "url":
-      case "email":
-        schema = "S.Union(S.String, S.Undefined)";
-        break;
-      case "files":
-        schema = "S.Array(S.String)";
-        break;
-      case "people":
-      case "relation":
-        schema = "S.Array(S.String)";
-        break;
-      case "select": {
-        const opts = (cfg?.select?.options ?? []) as Array<{ name: string }>;
-        if (opts.length > 0) {
-          const lits = litUnion(opts.map((o) => o.name));
-          schema = `S.Union(${lits.length ? `S.Literal(${lits})` : ""}, ` +
-            "S.Undefined)";
-        } else {
-          schema = "S.Union(S.String, S.Undefined)";
-        }
-        break;
-      }
-      case "multi_select": {
-        const opts = (cfg?.multi_select?.options ?? []) as Array<
-          { name: string }
-        >;
-        if (opts.length > 0) {
-          const lits = litUnion(opts.map((o) => o.name));
-          schema = `S.Array(S.Literal(${lits}))`;
-        } else {
-          schema = "S.Array(S.String)";
-        }
-        break;
-      }
-      case "formula": {
-        const ftype: string | undefined = cfg?.formula?.type;
-        if (ftype === "number") {
-          schema = "S.Union(S.Number, S.Undefined)";
-        } else if (ftype === "string") {
-          schema = "S.Union(S.String, S.Undefined)";
-        } else if (ftype === "boolean") {
-          schema = "S.Union(S.Boolean, S.Undefined)";
-        } else if (ftype === "date") {
-          schema = "S.Union(S.DateFromSelf, S.Undefined)";
-        } else {
-          schema = "S.Unknown";
-        }
-        break;
-      }
-      default:
-        schema = "S.Unknown";
-    }
-
+    const key = e.name.replace(/`/g, "`");
+    const schema = getSchemaForProperty(e);
     fields.push(`  '${key}': ${schema}`);
   }
 
@@ -237,10 +255,7 @@ export const generatedTitlePropertyName = ${
   return content;
 }
 
-function genEffectSchemaModule(
-  databaseId: string,
-  lastEditedTime: string,
-) {
+function genEffectSchemaModule(databaseId: string, lastEditedTime: string) {
   // Keep this minimal. The project already has a runtime DatabaseSchema; this
   // just exports a frozen metadata blob usable in tests or for asserts.
   const content = `// AUTO-GENERATED by scripts/generate-notion-schema.ts
@@ -265,7 +280,7 @@ async function main() {
     db.id,
     db.last_edited_time,
     entries,
-    title,
+    title
   );
   writeFileSync(outAbs, typesModule, "utf8");
   console.log(`Wrote ${outPath}`);
@@ -280,8 +295,10 @@ async function main() {
   }
 
   if (emitDomainSchema) {
-    const domainOut = outPath.replace(/notion-schema\.ts$/, 
-      "notion-domain.schema.ts");
+    const domainOut = outPath.replace(
+      /notion-schema\.ts$/,
+      "notion-domain.schema.ts"
+    );
     const domainAbs = resolve(domainOut);
     mkdirSync(dirname(domainAbs), { recursive: true });
     const domainModule = genDomainSchemaModule(db);

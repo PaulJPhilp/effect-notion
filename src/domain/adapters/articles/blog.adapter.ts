@@ -56,15 +56,11 @@ const buildBlogSchemaConfig = () => {
   const SelectProp = S.Struct({
     select: S.Union(S.Null, S.Struct({ name: S.String })),
   });
-  const SelectCodec = S.transform(
-    SelectProp,
-    S.Union(S.String, S.Undefined),
-    {
-      strict: true,
-      decode: (p) => p.select?.name,
-      encode: (s) => ({ select: s ? ({ name: s } as const) : null }),
-    }
-  );
+  const SelectCodec = S.transform(SelectProp, S.Union(S.String, S.Undefined), {
+    strict: true,
+    decode: (p) => p.select?.name,
+    encode: (s) => ({ select: s ? ({ name: s } as const) : null }),
+  });
 
   // Notion multi_select property codec
   const MultiSelectProp = S.Struct({
@@ -90,8 +86,67 @@ const buildBlogSchemaConfig = () => {
     publishedAt: DateFromNotionDate,
   } as const;
 
-  return makeConfigFromAnnotations(ann, codecs);
+  // biome-ignore lint/suspicious/noExplicitAny: heterogeneous codec types require type bridge
+  return makeConfigFromAnnotations(ann, codecs as any);
 };
+
+function buildFilter(params: ListParams) {
+  const and: unknown[] = [];
+
+  if (params.filter?.statusEquals) {
+    and.push({
+      property: P.status,
+      select: { equals: params.filter.statusEquals },
+    });
+  }
+  if (params.filter?.typeEquals) {
+    and.push({
+      property: P.type,
+      select: { equals: params.filter.typeEquals },
+    });
+  }
+  if (params.filter?.tagIn && params.filter.tagIn.length > 0) {
+    and.push(
+      ...params.filter.tagIn.map((t: string) => ({
+        property: P.tags,
+        multi_select: { contains: t },
+      }))
+    );
+  }
+  if (params.filter?.publishedAfter) {
+    and.push({
+      property: P.publishedAt,
+      date: { on_or_after: params.filter.publishedAfter.toISOString() },
+    });
+  }
+  if (params.filter?.publishedBefore) {
+    and.push({
+      property: P.publishedAt,
+      date: { on_or_before: params.filter.publishedBefore.toISOString() },
+    });
+  }
+
+  return and.length ? { and } : undefined;
+}
+
+function buildSort(params: ListParams) {
+  if (params.sort?.key === "name") {
+    return { property: P.name, direction: params.sort.direction };
+  }
+  if (params.sort?.key === "publishedAt") {
+    return { property: P.publishedAt, direction: params.sort.direction };
+  }
+  if (params.sort?.key === "updatedAt") {
+    return {
+      timestamp: "last_edited_time",
+      direction: params.sort.direction,
+    };
+  }
+  return {
+    timestamp: "created_time",
+    direction: params?.sort?.direction ?? "descending",
+  };
+}
 
 export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
   toNotionQuery: ({
@@ -101,54 +156,8 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
     databaseId: string;
     params: ListParams;
   }) => {
-    const and: any[] = [];
-
-    if (params.filter?.statusEquals) {
-      and.push({
-        property: P.status,
-        select: { equals: params.filter.statusEquals },
-      });
-    }
-    if (params.filter?.typeEquals) {
-      and.push({
-        property: P.type,
-        select: { equals: params.filter.typeEquals },
-      });
-    }
-    if (params.filter?.tagIn && params.filter.tagIn.length > 0) {
-      and.push(
-        ...params.filter.tagIn.map((t: string) => ({
-          property: P.tags,
-          multi_select: { contains: t },
-        }))
-      );
-    }
-    if (params.filter?.publishedAfter) {
-      and.push({
-        property: P.publishedAt,
-        date: { on_or_after: params.filter.publishedAfter.toISOString() },
-      });
-    }
-    if (params.filter?.publishedBefore) {
-      and.push({
-        property: P.publishedAt,
-        date: { on_or_before: params.filter.publishedBefore.toISOString() },
-      });
-    }
-
-    const filter = and.length ? { and } : undefined;
-
-    const sort =
-      params.sort?.key === "name"
-        ? { property: P.name, direction: params.sort.direction }
-        : params.sort?.key === "publishedAt"
-        ? { property: P.publishedAt, direction: params.sort.direction }
-        : params.sort?.key === "updatedAt"
-        ? { timestamp: "last_edited_time", direction: params.sort.direction }
-        : {
-            timestamp: "created_time",
-            direction: params?.sort?.direction ?? "descending",
-          };
+    const filter = buildFilter(params);
+    const sort = buildSort(params);
 
     return {
       ...(filter !== undefined ? { filter } : {}),
@@ -167,15 +176,24 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
   }: {
     source: string;
     databaseId: string;
-    page: any;
+    page: unknown;
   }) => {
-    const props = page.properties as Record<string, any>;
+    const pageTyped = page as {
+      id: string;
+      properties: Record<string, unknown>;
+      created_time: string;
+      last_edited_time: string;
+      created_by?: { name?: string; id?: string };
+      last_edited_by?: { name?: string; id?: string };
+    };
+
+    const props = pageTyped.properties;
 
     // Use shared schema configuration
     const cfg = buildBlogSchemaConfig();
 
     // Decode subset fields and aggregate non-fatal warnings
-    const decoded: any = {};
+    const decoded: Record<string, unknown> = {};
     const warnings: Array<string> = [];
     for (const [k, m] of Object.entries(cfg)) {
       const res = S.decodeEither(m.codec)(props[m.notionName]);
@@ -186,30 +204,30 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
         const msg = formatParseError(res.left);
         // Include source, pageId, property name for diagnostics
         logWarn(
-          `blog.adapter.fromNotionPage decode failed: src=${source} page=${page.id} prop=${m.notionName} -> ${msg}`
+          `blog.adapter.fromNotionPage decode failed: src=${source} page=${pageTyped.id} prop=${m.notionName} -> ${msg}`
         );
         warnings.push(`prop=${m.notionName}: ${msg}`);
       }
     }
 
     const entity = {
-      id: `${source}_${page.id}`,
+      id: `${source}_${pageTyped.id}`,
       source,
-      pageId: page.id,
+      pageId: pageTyped.id,
       databaseId,
 
       name: decoded.name,
       description: decoded.description,
 
-      createdAt: new Date(page.created_time),
-      updatedAt: new Date(page.last_edited_time),
+      createdAt: new Date(pageTyped.created_time),
+      updatedAt: new Date(pageTyped.last_edited_time),
       createdBy:
-        page.created_by && typeof page.created_by === "object"
-          ? (page.created_by as any).name ?? (page.created_by as any).id
+        pageTyped.created_by && typeof pageTyped.created_by === "object"
+          ? pageTyped.created_by?.name ?? pageTyped.created_by?.id
           : undefined,
       updatedBy:
-        page.last_edited_by && typeof page.last_edited_by === "object"
-          ? (page.last_edited_by as any).name ?? (page.last_edited_by as any).id
+        pageTyped.last_edited_by && typeof pageTyped.last_edited_by === "object"
+          ? pageTyped.last_edited_by?.name ?? pageTyped.last_edited_by?.id
           : undefined,
 
       type: decoded.type,
@@ -226,18 +244,25 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
   },
 
   toNotionProperties: ({ patch }: { patch: Partial<BaseEntity> }) => {
-    const props: Record<string, any> = {};
+    const props: Record<string, unknown> = {};
 
     // Use shared schema configuration
     const cfg = buildBlogSchemaConfig();
 
     // Encode only provided keys
     for (const [k, v] of Object.entries(patch)) {
-      if (!(k in cfg)) continue;
-      if (v === undefined) continue;
-      const m = (cfg as any)[k];
-      const res = S.encodeEither(m.codec)(v as any);
-      if (Either.isRight(res)) props[m.notionName] = res.right;
+      if (!(k in cfg)) {
+        continue;
+      }
+      if (v === undefined) {
+        continue;
+      }
+      const m = (cfg as Record<string, { notionName: string; codec: S.Schema<unknown, unknown> }>)[k]
+      if (!m) { continue }
+      const res = S.encodeEither(m.codec)(v)
+      if (Either.isRight(res)) {
+        props[m.notionName] = res.right
+      }
     }
 
     return props;

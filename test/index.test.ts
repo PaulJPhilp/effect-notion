@@ -1,6 +1,6 @@
-// test/index.test.ts
-import { describe, it, expect } from "vitest";
 import { Effect, Either } from "effect";
+// test/index.test.ts
+import { describe, expect, it } from "vitest";
 
 describe("Initial Effect Test", () => {
   it("should succeed with a value", () => {

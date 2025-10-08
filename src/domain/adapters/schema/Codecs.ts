@@ -3,13 +3,19 @@ import * as S from "effect/Schema";
 // Common minimal Notion property shapes (POC-oriented)
 export const TitleProp = S.Struct({
   title: S.Array(
-    S.Struct({ type: S.Literal("text"), text: S.Struct({ content: S.String }) })
+    S.Struct({
+      type: S.Literal("text"),
+      text: S.Struct({ content: S.String }),
+    }),
   ),
 });
 
 export const RichTextProp = S.Struct({
   rich_text: S.Array(
-    S.Struct({ type: S.Literal("text"), text: S.Struct({ content: S.String }) })
+    S.Struct({
+      type: S.Literal("text"),
+      text: S.Struct({ content: S.String }),
+    }),
   ),
 });
 
@@ -22,7 +28,7 @@ export const FilesProp = S.Struct({
     S.Struct({
       name: S.String,
       url: S.String,
-    })
+    }),
   ),
 });
 
@@ -75,7 +81,9 @@ export const PlainTextFromRichText = S.transform(RichTextProp, S.String, {
 export const UrlListFromFiles = S.transform(FilesProp, S.Array(S.String), {
   strict: true,
   decode: (p) => p.files.map((f) => f.url),
-  encode: (urls) => ({ files: urls.map((url, i) => ({ name: `file-${i+1}`, url })) }),
+  encode: (urls) => ({
+    files: urls.map((url, i) => ({ name: `file-${i + 1}`, url })),
+  }),
 });
 
 // First URL from Files (optional)
@@ -86,19 +94,15 @@ export const FirstUrlFromFiles = S.transform(
     strict: true,
     decode: (p) => p.files[0]?.url,
     encode: (u) => ({ files: u ? [{ name: "file-1", url: u }] : [] }),
-  }
+  },
 );
 
 // People -> list of IDs
-export const PeopleIdsFromPeople = S.transform(
-  PeopleProp,
-  S.Array(S.String),
-  {
-    strict: true,
-    decode: (p) => p.people.map((u) => u.id),
-    encode: (ids) => ({ people: ids.map((id) => ({ id })) }),
-  }
-);
+export const PeopleIdsFromPeople = S.transform(PeopleProp, S.Array(S.String), {
+  strict: true,
+  decode: (p) => p.people.map((u) => u.id),
+  encode: (ids) => ({ people: ids.map((id) => ({ id })) }),
+});
 
 // Relation -> list of IDs
 export const RelationIdsFromRelation = S.transform(
@@ -108,7 +112,7 @@ export const RelationIdsFromRelation = S.transform(
     strict: true,
     decode: (p) => p.relation.map((r) => r.id),
     encode: (ids) => ({ relation: ids.map((id) => ({ id })) }),
-  }
+  },
 );
 
 // Notion date <-> Date | undefined
@@ -120,7 +124,7 @@ export const DateFromNotionDate = S.transform(
     // Target encoded type for Date is string (ISO); return that here
     decode: (p) => (p.date ? p.date.start : undefined),
     encode: (iso) => ({ date: iso ? { start: iso } : null }),
-  }
+  },
 );
 
 // Formula number -> number | undefined
@@ -130,8 +134,10 @@ export const NumberFromFormula = S.transform(
   {
     strict: true,
     decode: (p) => p.formula.number ?? undefined,
-    encode: (n) => ({ formula: { type: "number" as const, number: n ?? null } }),
-  }
+    encode: (n) => ({
+      formula: { type: "number" as const, number: n ?? null },
+    }),
+  },
 );
 
 // Number -> number | undefined
@@ -142,30 +148,22 @@ export const NumberFromNumber = S.transform(
     strict: true,
     decode: (p) => p.number ?? undefined,
     encode: (n) => ({ number: n ?? null }),
-  }
+  },
 );
 
 // Checkbox -> boolean
-export const BooleanFromCheckbox = S.transform(
-  CheckboxProp,
-  S.Boolean,
-  {
-    strict: true,
-    decode: (p) => p.checkbox,
-    encode: (b) => ({ checkbox: b }),
-  }
-);
+export const BooleanFromCheckbox = S.transform(CheckboxProp, S.Boolean, {
+  strict: true,
+  decode: (p) => p.checkbox,
+  encode: (b) => ({ checkbox: b }),
+});
 
 // Url -> string | undefined
-export const UrlFromUrl = S.transform(
-  UrlProp,
-  S.Union(S.String, S.Undefined),
-  {
-    strict: true,
-    decode: (p) => p.url ?? undefined,
-    encode: (u) => ({ url: u ?? null }),
-  }
-);
+export const UrlFromUrl = S.transform(UrlProp, S.Union(S.String, S.Undefined), {
+  strict: true,
+  decode: (p) => p.url ?? undefined,
+  encode: (u) => ({ url: u ?? null }),
+});
 
 // Email -> string | undefined
 export const EmailFromEmail = S.transform(
@@ -175,6 +173,5 @@ export const EmailFromEmail = S.transform(
     strict: true,
     decode: (p) => p.email ?? undefined,
     encode: (e) => ({ email: e ?? null }),
-  }
+  },
 );
-

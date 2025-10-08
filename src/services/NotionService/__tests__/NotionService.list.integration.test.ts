@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { Effect, Exit, Layer } from "effect";
 import * as dotenv from "dotenv";
+import { Effect, type Exit, Layer } from "effect";
+import { describe, expect, it } from "vitest";
+import { NotionClient } from "../../../NotionClient.js";
 import { NotionService } from "../../../NotionService.js";
 import {
   AppConfigProviderLive,
   LogicalFieldOverridesService,
 } from "../../../config.js";
-import { NotionClient } from "../../../NotionClient.js";
 dotenv.config();
 
 const { NOTION_DATABASE_ID } = process.env;
@@ -16,14 +16,16 @@ const TestLayer = Layer.provide(
   Layer.mergeAll(
     NotionClient.Default,
     AppConfigProviderLive,
-    LogicalFieldOverridesService.Live
-  )
+    LogicalFieldOverridesService.Live,
+  ),
 );
 
 const expectFailure = (exit: Exit.Exit<unknown, unknown>) => {
   expect(exit._tag).toBe("Failure");
   if (exit._tag === "Failure") {
-    expect(String(exit.cause)).toMatch(/(BadRequestError|NotFoundError|ServiceUnavailableError)/);
+    expect(String(exit.cause)).toMatch(
+      /(BadRequestError|NotFoundError|ServiceUnavailableError)/,
+    );
   }
 };
 
@@ -40,10 +42,10 @@ describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(
           const service = yield* NotionService;
           const articles = yield* service.listArticles(
             NOTION_DATABASE_ID,
-            undefined
+            undefined,
           );
           return articles.results;
-        }).pipe(Effect.provide(TestLayer))
+        }).pipe(Effect.provide(TestLayer)),
       );
       expect(Array.isArray(result)).toBe(true);
     }, 20000);
@@ -68,9 +70,9 @@ describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(
             NOTION_DATABASE_ID,
             undefined,
             filter,
-            sorts
+            sorts,
           );
-        }).pipe(Effect.provide(TestLayer))
+        }).pipe(Effect.provide(TestLayer)),
       );
 
       if (exit._tag === "Success") {
@@ -79,5 +81,5 @@ describe.skipIf(!process.env.NOTION_API_KEY || !NOTION_DATABASE_ID)(
       }
       expectFailure(exit);
     }, 20000);
-  }
+  },
 );

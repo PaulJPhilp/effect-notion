@@ -1,9 +1,13 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { Effect } from "effect";
-import { loadSourcesConfig, applyDefaults, validateConfig } from "../src/domain/registry/config.js";
-import { getAdapter } from "../src/domain/adapters/registry.js";
-import { writeFileSync, unlinkSync, mkdirSync } from "node:fs";
+import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { Effect } from "effect";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { getAdapter } from "../src/domain/adapters/registry.js";
+import {
+  applyDefaults,
+  loadSourcesConfig,
+  validateConfig,
+} from "../src/domain/registry/config.js";
 
 const TEST_DIR = "/tmp/effect-notion-config-tests";
 
@@ -72,7 +76,7 @@ describe("Sources Configuration Loading", () => {
 
     expect(result.sources[0]?.databaseId).toBe(testDbId);
 
-    delete process.env.TEST_DB_ID;
+    process.env.TEST_DB_ID = undefined;
   });
 
   it("should fail on invalid schema", async () => {
@@ -91,7 +95,7 @@ describe("Sources Configuration Loading", () => {
     writeFileSync(configPath, JSON.stringify(config, null, 2));
 
     const result = await Effect.runPromise(
-      loadSourcesConfig(configPath).pipe(Effect.either)
+      loadSourcesConfig(configPath).pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Left");
@@ -99,7 +103,7 @@ describe("Sources Configuration Loading", () => {
 
   it("should fail on missing file", async () => {
     const result = await Effect.runPromise(
-      loadSourcesConfig("/nonexistent/file.json").pipe(Effect.either)
+      loadSourcesConfig("/nonexistent/file.json").pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Left");
@@ -201,7 +205,7 @@ describe("validateConfig", () => {
     };
 
     const result = await Effect.runPromise(
-      validateConfig(config).pipe(Effect.either)
+      validateConfig(config).pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Right");
@@ -220,7 +224,7 @@ describe("validateConfig", () => {
     };
 
     const result = await Effect.runPromise(
-      validateConfig(config).pipe(Effect.either)
+      validateConfig(config).pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Left");
@@ -247,12 +251,14 @@ describe("validateConfig", () => {
     };
 
     const result = await Effect.runPromise(
-      validateConfig(config).pipe(Effect.either)
+      validateConfig(config).pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Left");
     if (result._tag === "Left") {
-      expect(result.left.message).toContain("Duplicate source alias found: blog");
+      expect(result.left.message).toContain(
+        "Duplicate source alias found: blog",
+      );
     }
   });
 });
@@ -344,8 +350,8 @@ describe("Environment-Specific Configurations", () => {
     expect(result.sources[0]?.databaseId).toBe("database-one");
     expect(result.sources[1]?.databaseId).toBe("database-two");
 
-    delete process.env.TEST_DB_1;
-    delete process.env.TEST_DB_2;
+    process.env.TEST_DB_1 = undefined;
+    process.env.TEST_DB_2 = undefined;
   });
 
   it("should substitute missing env var to empty string", async () => {
@@ -420,7 +426,7 @@ describe("Edge Cases and Error Handling", () => {
     writeFileSync(configPath, "{ invalid json content }");
 
     const result = await Effect.runPromise(
-      loadSourcesConfig(configPath).pipe(Effect.either)
+      loadSourcesConfig(configPath).pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Left");
@@ -457,7 +463,7 @@ describe("Edge Cases and Error Handling", () => {
     writeFileSync(configPath, JSON.stringify(config, null, 2));
 
     const result = await Effect.runPromise(
-      loadSourcesConfig(configPath).pipe(Effect.either)
+      loadSourcesConfig(configPath).pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Left");
@@ -522,7 +528,7 @@ describe("Edge Cases and Error Handling", () => {
     writeFileSync(configPath, JSON.stringify(config, null, 2));
 
     const result = await Effect.runPromise(
-      loadSourcesConfig(configPath).pipe(Effect.either)
+      loadSourcesConfig(configPath).pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Left");
@@ -544,7 +550,7 @@ describe("Edge Cases and Error Handling", () => {
     writeFileSync(configPath, JSON.stringify(config, null, 2));
 
     const result = await Effect.runPromise(
-      loadSourcesConfig(configPath).pipe(Effect.either)
+      loadSourcesConfig(configPath).pipe(Effect.either),
     );
 
     expect(result._tag).toBe("Left");

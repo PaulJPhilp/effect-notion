@@ -33,7 +33,7 @@ const getText = (richText: ReadonlyArray<{ plain_text: string }>): string =>
   richText.map((t) => t.plain_text).join("");
 
 export const notionBlocksToMarkdown = (
-  blocks: ReadonlyArray<Block>
+  blocks: ReadonlyArray<Block>,
 ): string => {
   const markdownLines = blocks
     .map((block) => {
@@ -57,13 +57,13 @@ export const notionBlocksToMarkdown = (
       return undefined;
     })
     .filter(
-      (line): line is string => typeof line === "string" && line.length > 0
+      (line): line is string => typeof line === "string" && line.length > 0,
     );
   return markdownLines.join("\n\n");
 };
 
 export const markdownToNotionBlocks = (
-  markdown: string
+  markdown: string,
 ): ReadonlyArray<NotionBlockInput> => {
   const tokens = lexer(markdown);
   const blocks: Array<NotionBlockInput> = [];
@@ -124,7 +124,7 @@ export const hashString = (input: string): string => {
 };
 
 export const normalizeDatabase = (
-  database: Database
+  database: Database,
 ): NormalizedDatabaseSchema => {
   const entries = Object.entries(database.properties);
   const properties = entries.map(([name, value]) => {
@@ -138,7 +138,7 @@ export const normalizeDatabase = (
   });
   const titleProp = properties.find((p) => p.type === "title");
   const propertiesHash = hashString(
-    JSON.stringify(properties.map((p) => ({ name: p.name, type: p.type })))
+    JSON.stringify(properties.map((p) => ({ name: p.name, type: p.type }))),
   );
   return {
     databaseId: database.id,
@@ -153,12 +153,12 @@ export const normalizeDatabase = (
 // Dynamic schema builder helpers (split to reduce complexity)
 // ----------------------------------
 const U = <A, I>(
-  sch: S.Schema<A, I, never>
+  sch: S.Schema<A, I, never>,
 ): S.Schema<unknown, unknown, never> =>
   sch as unknown as S.Schema<unknown, unknown, never>;
 
 function schemaForPrimitiveType(
-  type: string
+  type: string,
 ): S.Schema<unknown, unknown, never> | undefined {
   if (type === "title" || type === "rich_text") {
     return U(S.String);
@@ -185,12 +185,12 @@ function schemaForPrimitiveType(
 }
 
 function schemaForSelect(
-  cfg: Record<string, unknown>
+  cfg: Record<string, unknown>,
 ): S.Schema<unknown, unknown, never> {
   const opts = (
     cfg && typeof cfg === "object" && "select" in cfg
-      ? (cfg as { select?: { options?: ReadonlyArray<{ name: string }> } })
-          .select?.options ?? []
+      ? ((cfg as { select?: { options?: ReadonlyArray<{ name: string }> } })
+          .select?.options ?? [])
       : []
   ) as ReadonlyArray<{ name: string }>;
   if (opts.length === 0) {
@@ -201,15 +201,15 @@ function schemaForSelect(
 }
 
 function schemaForMultiSelect(
-  cfg: Record<string, unknown>
+  cfg: Record<string, unknown>,
 ): S.Schema<unknown, unknown, never> {
   const opts = (
     cfg && typeof cfg === "object" && "multi_select" in cfg
-      ? (
+      ? ((
           cfg as {
             multi_select?: { options?: ReadonlyArray<{ name: string }> };
           }
-        ).multi_select?.options ?? []
+        ).multi_select?.options ?? [])
       : []
   ) as ReadonlyArray<{ name: string }>;
   if (opts.length === 0) {
@@ -220,7 +220,7 @@ function schemaForMultiSelect(
 }
 
 function schemaForFormula(
-  cfg: Record<string, unknown>
+  cfg: Record<string, unknown>,
 ): S.Schema<unknown, unknown, never> {
   const ftype =
     cfg && typeof cfg === "object" && "formula" in cfg
@@ -245,7 +245,7 @@ function schemaForFormula(
 
 function schemaForType(
   type: string,
-  cfg: Record<string, unknown>
+  cfg: Record<string, unknown>,
 ): S.Schema<unknown, unknown, never> {
   return Match.value(type).pipe(
     Match.when("title", () => U(S.String)),
@@ -261,7 +261,7 @@ function schemaForType(
     Match.when("select", () => schemaForSelect(cfg)),
     Match.when("multi_select", () => schemaForMultiSelect(cfg)),
     Match.when("formula", () => schemaForFormula(cfg)),
-    Match.orElse(() => U(S.Unknown))
+    Match.orElse(() => U(S.Unknown)),
   );
 }
 
@@ -274,7 +274,7 @@ export const buildRuntimeEffectSchema = (schema: NormalizedDatabaseSchema) => {
   for (const p of schema.properties) {
     fields[p.name] = schemaForType(
       p.type,
-      (p.config ?? {}) as Record<string, unknown>
+      (p.config ?? {}) as Record<string, unknown>,
     );
   }
 
@@ -290,11 +290,11 @@ export const buildRuntimeEffectSchema = (schema: NormalizedDatabaseSchema) => {
 
 /**
  * Fetches all paginated results using Stream.paginateEffect.
- * 
+ *
  * This follows the Effect pattern for handling paginated APIs by
  * modeling the pagination as a stream that automatically handles
  * cursor-based iteration.
- * 
+ *
  * @param fetchFn - Function that fetches a page given an optional cursor
  * @returns Effect that yields all results as a readonly array
  */
@@ -304,24 +304,34 @@ export const getAllPaginatedResults = <
     next_cursor: Option.Option<string>;
     results: ReadonlyArray<unknown>;
   },
-  E
+  E,
 >(
-  fetchFn: (cursor?: string) => Effect.Effect<T, E>
+  fetchFn: (cursor?: string) => Effect.Effect<T, E>,
 ): Effect.Effect<ReadonlyArray<T["results"][number]>, E> =>
   Stream.paginateChunkEffect(
     undefined as string | undefined,
     (cursor: string | undefined) =>
       fetchFn(cursor).pipe(
-        Effect.map((page): readonly [Chunk.Chunk<unknown>, Option.Option<string | undefined>] => [
-          Chunk.fromIterable(page.results),
-          page.has_more
-            ? page.next_cursor
-            : Option.none<string | undefined>(),
-        ])
-      )
+        Effect.map(
+          (
+            page,
+          ): readonly [
+            Chunk.Chunk<unknown>,
+            Option.Option<string | undefined>,
+          ] => [
+            Chunk.fromIterable(page.results),
+            page.has_more
+              ? page.next_cursor
+              : Option.none<string | undefined>(),
+          ],
+        ),
+      ),
   ).pipe(
     Stream.runCollect,
-    Effect.map((chunk) => Chunk.toReadonlyArray(chunk) as ReadonlyArray<T["results"][number]>)
+    Effect.map(
+      (chunk) =>
+        Chunk.toReadonlyArray(chunk) as ReadonlyArray<T["results"][number]>,
+    ),
   );
 
 // ----------------------------------
@@ -350,7 +360,7 @@ export interface SimpleDbSpecField {
 export type SimpleDbSpec = Record<string, SimpleDbSpecField>;
 
 export function buildNotionPropertiesFromSimpleSpec(
-  spec: SimpleDbSpec
+  spec: SimpleDbSpec,
 ): Record<string, unknown> {
   const props: Record<string, unknown> = {};
   for (const [name, field] of Object.entries(spec)) {

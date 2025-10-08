@@ -1,7 +1,10 @@
+import type { HttpBodyError } from "@effect/platform/HttpBody";
 import * as HttpRouter from "@effect/platform/HttpRouter";
+import type { RequestError } from "@effect/platform/HttpServerError";
 import * as HttpServerRequest from "@effect/platform/HttpServerRequest";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
 import { Effect, Schema } from "effect";
+import type { ParseError } from "effect/ParseResult";
 import type { ListParams } from "../domain/logical/Common.js";
 import { ListParams as ListParamsSchema } from "../domain/logical/Common.js";
 import { badRequest } from "../errors.js";
@@ -9,8 +12,10 @@ import {
   addRequestIdToHeaders,
   getRequestId,
   setCurrentRequestId,
+  type RequestIdService,
 } from "../http/requestId.js";
 import { ArticlesRepository } from "../services/ArticlesRepository.js";
+import type { NotionError } from "../services/NotionClient/errors.js";
 
 // Schemas for route payloads
 const GetRequest = Schema.Struct({
@@ -52,14 +57,12 @@ const DeleteRequest = Schema.Struct({
   pageId: Schema.String,
 });
 
-export const applyArticlesRoutes = <
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-    T extends { pipe: (...fns: Array<(self: any) => any>) => any }
->(
-  // Accept a generic router so composition preserves its type
-  router: T
-): T =>
+export const applyArticlesRoutes = <E, R>(
+  router: HttpRouter.HttpRouter<E, R>
+): HttpRouter.HttpRouter<
+  E | RequestError | NotionError | HttpBodyError | ParseError,
+  R | ArticlesRepository | RequestIdService
+> =>
   router.pipe(
     // List
     HttpRouter.post(

@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { Sources } from "../src/domain/registry/sources.js";
-import { writeFileSync, unlinkSync, mkdirSync } from "node:fs";
+import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Sources } from "../src/domain/registry/sources.js";
 
 const TEST_DIR = "/tmp/effect-notion-integration-tests";
 
@@ -17,7 +17,7 @@ describe("Source Registry Integration", () => {
     if (originalEnv) {
       process.env.NOTION_SOURCES_CONFIG = originalEnv;
     } else {
-      delete process.env.NOTION_SOURCES_CONFIG;
+      process.env.NOTION_SOURCES_CONFIG = undefined;
     }
 
     // Clean up test files
@@ -58,7 +58,7 @@ describe("Source Registry Integration", () => {
     // The registry should have at least the default blog source
     expect(sources.length).toBeGreaterThanOrEqual(0);
 
-    delete process.env.TEST_INTEGRATION_DB;
+    process.env.TEST_INTEGRATION_DB = undefined;
   });
 
   it("should support multiple sources in single config", () => {
@@ -92,8 +92,8 @@ describe("Source Registry Integration", () => {
     const sources = Sources.all();
     expect(sources.length).toBeGreaterThanOrEqual(1);
 
-    delete process.env.TEST_DB_BLOG;
-    delete process.env.TEST_DB_HANDBOOK;
+    process.env.TEST_DB_BLOG = undefined;
+    process.env.TEST_DB_HANDBOOK = undefined;
   });
 
   it("should apply defaults from config", () => {
@@ -124,12 +124,14 @@ describe("Source Registry Integration", () => {
     const sources = Sources.all();
     expect(sources.length).toBeGreaterThanOrEqual(1);
 
-    delete process.env.TEST_DB_DEFAULT;
+    process.env.TEST_DB_DEFAULT = undefined;
   });
 
   it("should handle source lookup by kind and alias", () => {
     const sources = Sources.all();
-    const blogSource = sources.find(s => s.kind === "articles" && s.alias === "blog");
+    const blogSource = sources.find(
+      (s) => s.kind === "articles" && s.alias === "blog",
+    );
 
     if (blogSource) {
       expect(blogSource.alias).toBe("blog");
@@ -148,7 +150,7 @@ describe("Source Registry Integration", () => {
     expect(Array.isArray(sources)).toBe(true);
 
     // Each source should have required properties
-    sources.forEach(source => {
+    for (const source of sources) {
       expect(source.alias).toBeDefined();
       expect(source.kind).toBeDefined();
       expect(source.databaseId).toBeDefined();
@@ -156,24 +158,22 @@ describe("Source Registry Integration", () => {
       expect(source.capabilities).toBeDefined();
       expect(typeof source.capabilities.update).toBe("boolean");
       expect(typeof source.capabilities.delete).toBe("boolean");
-    });
+    }
   });
 
   it("should filter sources by kind", () => {
-    const articleSources = Sources.all().filter(
-      s => s.kind === "articles"
-    );
+    const articleSources = Sources.all().filter((s) => s.kind === "articles");
 
     expect(Array.isArray(articleSources)).toBe(true);
-    articleSources.forEach(source => {
+    for (const source of articleSources) {
       expect(source.kind).toBe("articles");
-    });
+    }
   });
 
   it("should handle capabilities correctly", () => {
     const sources = Sources.all();
 
-    sources.forEach(source => {
+    for (const source of sources) {
       // Capabilities should be boolean values
       expect(typeof source.capabilities.update).toBe("boolean");
       expect(typeof source.capabilities.delete).toBe("boolean");
@@ -182,19 +182,19 @@ describe("Source Registry Integration", () => {
       const keys = Object.keys(source.capabilities);
       expect(keys).toContain("update");
       expect(keys).toContain("delete");
-    });
+    }
   });
 
   it("should include description when provided", () => {
     const sources = Sources.all();
 
-    const sourcesWithDescription = sources.filter(s => s.description);
+    const sourcesWithDescription = sources.filter((s) => s.description);
 
     // If descriptions exist, they should be strings
-    sourcesWithDescription.forEach(source => {
+    for (const source of sourcesWithDescription) {
       expect(typeof source.description).toBe("string");
-      expect(source.description!.length).toBeGreaterThan(0);
-    });
+      expect(source.description?.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -211,7 +211,7 @@ describe("Source Registry Error Handling", () => {
     if (originalConfig) {
       process.env.NOTION_SOURCES_CONFIG = originalConfig;
     } else {
-      delete process.env.NOTION_SOURCES_CONFIG;
+      process.env.NOTION_SOURCES_CONFIG = undefined;
     }
   });
 
@@ -219,16 +219,16 @@ describe("Source Registry Error Handling", () => {
     const sources = Sources.all();
 
     // No source should have empty databaseId
-    sources.forEach(source => {
+    for (const source of sources) {
       expect(source.databaseId).toBeTruthy();
       expect(source.databaseId.trim().length).toBeGreaterThan(0);
-    });
+    }
   });
 
   it("should have valid adapters for all sources", () => {
     const sources = Sources.all();
 
-    sources.forEach(source => {
+    for (const source of sources) {
       expect(source.adapter).toBeDefined();
       expect(source.adapter).not.toBeNull();
 
@@ -236,7 +236,7 @@ describe("Source Registry Error Handling", () => {
       expect(typeof source.adapter.toNotionQuery).toBe("function");
       expect(typeof source.adapter.fromNotionPage).toBe("function");
       expect(typeof source.adapter.toNotionProperties).toBe("function");
-    });
+    }
   });
 });
 

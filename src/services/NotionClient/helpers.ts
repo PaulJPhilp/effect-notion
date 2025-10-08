@@ -23,31 +23,52 @@ import {
   type NotionError,
 } from "./errors.js";
 
+// Helper functions to reduce complexity
+function tryGetFromHeaders(headers: unknown): string | undefined {
+  if (typeof Headers !== "undefined" && headers instanceof Headers) {
+    const value = headers.get("retry-after");
+    return value === null ? undefined : value;
+  }
+  return undefined;
+}
+
+function tryGetViaMethod(headers: unknown): string | undefined {
+  const maybeGet = (headers as { get?: (name: string) => string | null }).get;
+  if (typeof maybeGet === "function") {
+    const value = maybeGet.call(headers, "retry-after");
+    return value === null ? undefined : value;
+  }
+  return undefined;
+}
+
+function tryGetFromRecord(headers: unknown): string | undefined {
+  if ("retry-after" in (headers as Record<string, unknown>)) {
+    const raw = (headers as Record<string, unknown>)["retry-after"];
+    if (typeof raw === "string") {
+      return raw;
+    }
+  }
+  return undefined;
+}
+
 // Helper function to handle HTTP response status codes
+function getRetryAfterHeader(headers: unknown): string | undefined {
+  const fromHeaders = tryGetFromHeaders(headers);
+  if (fromHeaders !== undefined) {
+    return fromHeaders;
+  }
+
+  if (headers && typeof headers === "object") {
+    return tryGetViaMethod(headers) ?? tryGetFromRecord(headers);
+  }
+
+  return undefined;
+}
+
 function parseRetryAfterSeconds(
   response: HttpClientResponse.HttpClientResponse
 ): number | undefined {
-  const headersAny = response.headers as unknown;
-  let retryAfter: string | undefined;
-
-  if (
-    typeof Headers !== "undefined" &&
-    headersAny instanceof Headers
-  ) {
-    const value = headersAny.get("retry-after");
-    retryAfter = value === null ? undefined : value;
-  } else if (headersAny && typeof headersAny === "object") {
-    const maybeGet = (headersAny as { get?: (name: string) => string | null }).get;
-    if (typeof maybeGet === "function") {
-      const value = maybeGet.call(headersAny, "retry-after");
-      retryAfter = value === null ? undefined : value;
-    } else if ("retry-after" in (headersAny as Record<string, unknown>)) {
-      const raw = (headersAny as Record<string, unknown>)["retry-after"];
-      if (typeof raw === "string") {
-        retryAfter = raw;
-      }
-    }
-  }
+  const retryAfter = getRetryAfterHeader(response.headers);
 
   if (!retryAfter) {
     return undefined;
@@ -114,13 +135,13 @@ function handleResponseStatus<T, I>(
         (body) => new ConflictError({ cause: body || undefined })
       );
     case 429:
-      return failWithBody(response, (body) =>
-        new RateLimitedError({
-          ...(body.length > 0 ? { cause: body } : {}),
-          ...(retryAfterSeconds !== undefined
-            ? { retryAfterSeconds }
-            : {}),
-        })
+      return failWithBody(
+        response,
+        (body) =>
+          new RateLimitedError({
+            ...(body.length > 0 ? { cause: body } : {}),
+            ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+          })
       );
     case 503:
       return failWithBody(
@@ -184,13 +205,13 @@ function handleUnitResponseStatus(
         (body) => new ConflictError({ cause: body || undefined })
       );
     case 429:
-      return failWithBody(response, (body) =>
-        new RateLimitedError({
-          ...(body.length > 0 ? { cause: body } : {}),
-          ...(retryAfterSeconds !== undefined
-            ? { retryAfterSeconds }
-            : {}),
-        })
+      return failWithBody(
+        response,
+        (body) =>
+          new RateLimitedError({
+            ...(body.length > 0 ? { cause: body } : {}),
+            ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+          })
       );
     case 503:
       return failWithBody(
@@ -210,7 +231,7 @@ function handleUnitResponseStatus(
 
 /**
  * Effect-native metrics for Notion API requests.
- * 
+ *
  * These metrics are fiber-safe and integrate with Effect's
  * metric system for proper observability.
  */
@@ -224,7 +245,7 @@ const notionDurationHistogram = Metric.histogram(
 
 /**
  * Retry schedule for Notion API requests.
- * 
+ *
  * Uses exponential backoff with jitter to prevent thundering herd.
  * Configuration: 3 total attempts (1 initial + 2 retries)
  * - Base delay: 1 second
@@ -239,11 +260,11 @@ const notionRetrySchedule = Schedule.exponential("1 second").pipe(
 
 /**
  * Determines if a Notion API error should trigger a retry.
- * 
+ *
  * Retryable errors:
  * - RequestTimeoutError: Network timeouts
  * - InternalServerError: 5xx responses from Notion
- * 
+ *
  * Non-retryable errors (fail fast):
  * - InvalidApiKeyError: 401 authentication failures
  * - NotFoundError: 404 resource not found
@@ -251,14 +272,13 @@ const notionRetrySchedule = Schedule.exponential("1 second").pipe(
  */
 const isRetryableError = (error: NotionError): boolean => {
   return (
-    error._tag === "RequestTimeoutError" ||
-    error._tag === "InternalServerError"
+    error._tag === "RequestTimeoutError" || error._tag === "InternalServerError"
   );
 };
 
 /**
  * Adds required Notion API headers to an HTTP request.
- * 
+ *
  * @param apiKey - Notion integration API key
  * @returns Request transformer that adds authentication and version headers
  */
@@ -405,7 +425,9 @@ export const __test__mapStatusToError = (
     return new ConflictError({ cause: body || undefined });
   }
   if (status === 429) {
-    return new RateLimitedError({ ...(body.length > 0 ? { cause: body } : {}) });
+    return new RateLimitedError({
+      ...(body.length > 0 ? { cause: body } : {}),
+    });
   }
   if (status === 503) {
     return new ServiceUnavailableError({ cause: body || undefined });

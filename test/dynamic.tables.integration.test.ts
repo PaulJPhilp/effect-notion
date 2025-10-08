@@ -2,12 +2,12 @@ import { NodeContext } from "@effect/platform-node";
 import * as HttpApp from "@effect/platform/HttpApp";
 import * as dotenv from "dotenv";
 import { Layer, Logger } from "effect";
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
-import { app } from "../src/router.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppConfigProviderLive } from "../src/config.js";
 import { RequestIdService } from "../src/http/requestId.js";
-import { NotionService } from "../src/services/NotionService/service.js";
+import { app } from "../src/router.js";
 import type { SimpleDbSpec } from "../src/services/NotionService/helpers.js";
+import { NotionService } from "../src/services/NotionService/service.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -132,7 +132,9 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
         expect(Array.isArray(body.properties)).toBe(true);
 
         // Verify schema properties match our spec
-        const propertyNames = body.properties.map((p: any) => p.name);
+        const propertyNames = body.properties.map(
+          (p: { name: string }) => p.name
+        );
         expect(propertyNames).toContain("Name");
         expect(propertyNames).toContain("Status");
         expect(propertyNames).toContain("Tags");
@@ -181,9 +183,15 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
 
         // Verify the schema includes expected property types
         const properties = body.properties;
-        const nameProp = properties.find((p: any) => p.name === "Name");
-        const statusProp = properties.find((p: any) => p.name === "Status");
-        const tagsProp = properties.find((p: any) => p.name === "Tags");
+        const nameProp = properties.find(
+          (p: { name: string }) => p.name === "Name"
+        );
+        const statusProp = properties.find(
+          (p: { name: string }) => p.name === "Status"
+        );
+        const tagsProp = properties.find(
+          (p: { name: string }) => p.name === "Tags"
+        );
 
         expect(nameProp).toBeDefined();
         expect(nameProp.type).toBe("title");
@@ -373,22 +381,28 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
 
         // Verify select options are preserved
         const statusProp = body.properties.find(
-          (p: any) => p.name === "Status"
+          (p: { name: string }) => p.name === "Status"
         );
         expect(statusProp.config.select.options).toHaveLength(3);
         expect(
-          statusProp.config.select.options.map((o: any) => o.name)
+          statusProp.config.select.options.map((o: { name: string }) => o.name)
         ).toEqual(["Draft", "Published", "Archived"]);
 
         // Verify multi-select options are preserved
-        const tagsProp = body.properties.find((p: any) => p.name === "Tags");
+        const tagsProp = body.properties.find(
+          (p: { name: string }) => p.name === "Tags"
+        );
         expect(tagsProp.config.multi_select.options).toHaveLength(4);
         expect(
-          tagsProp.config.multi_select.options.map((o: any) => o.name)
+          tagsProp.config.multi_select.options.map(
+            (o: { name: string }) => o.name
+          )
         ).toEqual(["tech", "news", "tutorial", "announcement"]);
 
         // Verify formula type is preserved
-        const scoreProp = body.properties.find((p: any) => p.name === "Score");
+        const scoreProp = body.properties.find(
+          (p: { name: string }) => p.name === "Score"
+        );
         expect(scoreProp.config.formula.type).toBe("number");
       });
     });

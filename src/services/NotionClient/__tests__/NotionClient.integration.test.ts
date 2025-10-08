@@ -1,9 +1,7 @@
 import * as dotenv from "dotenv";
 import { ConfigProvider, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  NotionClient
-} from "../../../NotionClient.js";
+import { NotionClient } from "../../../NotionClient.js";
 import { AppConfigProviderLive } from "../../../config.js";
 
 dotenv.config();
@@ -13,9 +11,14 @@ const { NOTION_API_KEY, NOTION_DATABASE_ID, NOTION_PAGE_ID } = process.env;
 describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
   "NotionClient (Integration)",
   () => {
-    const apiKey = NOTION_API_KEY!;
-    const databaseId = NOTION_DATABASE_ID!;
-    const pageId = NOTION_PAGE_ID!;
+    if (!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID) {
+      throw new Error(
+        "Missing Notion environment variables for integration tests"
+      );
+    }
+    const apiKey = NOTION_API_KEY;
+    const databaseId = NOTION_DATABASE_ID;
+    const pageId = NOTION_PAGE_ID;
 
     const TestConfigLayer = Layer.setConfigProvider(
       ConfigProvider.fromMap(new Map([["NOTION_API_KEY", apiKey]]))
@@ -112,7 +115,10 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         expect(String(exit.cause)).toMatch(serviceUnavailableLike);
         return;
       }
-      const result = exit.value as any;
+      const result = exit.value as {
+        object: string;
+        results: readonly unknown[];
+      };
       expect(result.object).toBe("list");
       expect(Array.isArray(result.results)).toBe(true);
     }, 20000);
@@ -153,9 +159,11 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         expect(String(appendExit.cause)).toMatch(serviceUnavailableLike);
         return;
       }
-      const appendResult = appendExit.value as any;
+      const appendResult = appendExit.value as {
+        results: ReadonlyArray<{ id: string }>;
+      };
       expect(appendResult.results.length).toBeGreaterThan(0);
-      const newBlockId = appendResult.results[0]!.id as string;
+      const newBlockId = appendResult.results[0]?.id ?? "";
 
       const deleteExit = await Effect.runPromiseExit(
         Effect.gen(function* () {
@@ -206,11 +214,14 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         expect(String(appendExit.cause)).toMatch(serviceUnavailableLike);
         return;
       }
-      const result = appendExit.value as any;
+      const result = appendExit.value as {
+        object: string;
+        results: ReadonlyArray<{ id: string }>;
+      };
       expect(result.object).toBe("list");
       expect(result.results.length).toBeGreaterThan(0);
 
-      const newBlockId = result.results[0]!.id as string;
+      const newBlockId = result.results[0]?.id as string;
       const cleanupExit = await Effect.runPromiseExit(
         Effect.gen(function* () {
           const client = yield* NotionClient;
@@ -241,7 +252,10 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
       const exit = await Effect.runPromiseExit(
         Effect.gen(function* () {
           const client = yield* NotionClient;
-          return yield* client.appendBlockChildren(invalidPageId, blocksToAppend);
+          return yield* client.appendBlockChildren(
+            invalidPageId,
+            blocksToAppend
+          );
         }).pipe(Effect.provide(TestLayers))
       );
       expectFailureCause(exit, serviceUnavailableLike);

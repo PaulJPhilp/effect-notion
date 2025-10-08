@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { notionBlocksToMarkdown } from "../../../NotionService.js";
+import { describe, expect, it } from "vitest";
 import type { Block } from "../../../NotionSchema.js";
+import { notionBlocksToMarkdown } from "../../../NotionService.js";
 
 describe("notionBlocksToMarkdown - unknown blocks are skipped", () => {
   it("renders known blocks and omits unknown types", () => {

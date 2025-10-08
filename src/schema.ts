@@ -13,7 +13,7 @@ const DatabaseFieldSpecSchema = Schema.Struct({
     Schema.Literal("select"),
     Schema.Literal("multi_select"),
     Schema.Literal("status"),
-    Schema.Literal("formula")
+    Schema.Literal("formula"),
   ),
   options: Schema.optional(Schema.Array(Schema.String)),
   formulaType: Schema.optional(
@@ -21,8 +21,8 @@ const DatabaseFieldSpecSchema = Schema.Struct({
       Schema.Literal("number"),
       Schema.Literal("string"),
       Schema.Literal("boolean"),
-      Schema.Literal("date")
-    )
+      Schema.Literal("date"),
+    ),
   ),
 });
 
@@ -37,28 +37,26 @@ const NormalizedDatabaseSpecSchema = RawDatabaseSpecSchema.pipe(
       const normalizedEntries = Object.entries(spec).map(([key, value]) => {
         const trimmedKey = key.trim();
         if (trimmedKey.length === 0) {
-          throw new Error("Database field names must not be empty after trimming");
+          throw new Error(
+            "Database field names must not be empty after trimming",
+          );
         }
         return [trimmedKey, value] as const;
       });
       return Object.fromEntries(normalizedEntries);
     },
     encode: (spec) => spec,
-  })
+  }),
 );
 
 // src/schema.ts
 import { Schema } from "effect";
 
 // --- Common ---
-const TrimmedString = Schema.transform(
-  Schema.String,
-  Schema.String,
-  {
-    decode: (value) => value.trim(),
-    encode: (value) => value,
-  }
-);
+const TrimmedString = Schema.transform(Schema.String, Schema.String, {
+  decode: (value) => value.trim(),
+  encode: (value) => value,
+});
 
 export const NonEmptyString = TrimmedString.pipe(Schema.minLength(1));
 
@@ -69,7 +67,7 @@ export const NotionIdSchema = NonEmptyString;
 // --- Notion query: typed subset ---
 const SortDirectionSchema = Schema.Union(
   Schema.Literal("ascending"),
-  Schema.Literal("descending")
+  Schema.Literal("descending"),
 );
 
 export const SortSchema = Schema.Struct({
@@ -173,13 +171,13 @@ const FilterLeafSchema = Schema.Union(
   StatusFilterSchema,
   CheckboxFilterSchema,
   NumberFilterSchema,
-  DateFilterSchema
+  DateFilterSchema,
 );
 
 export const FilterSchema = Schema.Union(
   FilterLeafSchema,
   Schema.Struct({ and: Schema.Array(FilterLeafSchema) }),
-  Schema.Struct({ or: Schema.Array(FilterLeafSchema) })
+  Schema.Struct({ or: Schema.Array(FilterLeafSchema) }),
 );
 
 // --- /api/list-articles ---
@@ -195,8 +193,8 @@ export const ListArticlesRequestSchema = Schema.Struct({
     Schema.Number.pipe(
       Schema.int(),
       Schema.greaterThanOrEqualTo(1),
-      Schema.lessThanOrEqualTo(100)
-    )
+      Schema.lessThanOrEqualTo(100),
+    ),
   ),
   startCursor: Schema.optional(NonEmptyString),
 });
@@ -244,7 +242,7 @@ export const UpdateArticleContentRequestSchema = Schema.Struct({
     Schema.maxLength(MAX_CONTENT_LENGTH, {
       message: () =>
         `Content must not exceed ${MAX_CONTENT_LENGTH} characters (got ${MAX_CONTENT_LENGTH}+)`,
-    })
+    }),
   ),
 });
 export type UpdateArticleContentRequest = Schema.Schema.Type<
@@ -305,8 +303,8 @@ export const DbQueryRequestSchema = Schema.Struct({
     Schema.Number.pipe(
       Schema.int(),
       Schema.greaterThanOrEqualTo(1),
-      Schema.lessThanOrEqualTo(100)
-    )
+      Schema.lessThanOrEqualTo(100),
+    ),
   ),
   startCursor: Schema.optional(NonEmptyString),
 });
@@ -354,7 +352,7 @@ export const DbCreateDatabaseRequestSchema = Schema.Struct({
   parentPageId: NonEmptyString,
   title: NonEmptyString,
   spec: NormalizedDatabaseSpecSchema,
-})
+});
 
 export const DbCreateDatabaseResponseSchema = Schema.Struct({
   databaseId: NonEmptyString,
@@ -363,7 +361,7 @@ export const DbCreateDatabaseResponseSchema = Schema.Struct({
       name: Schema.String,
       type: Schema.String,
       config: Schema.optional(Schema.Unknown),
-    })
+    }),
   ),
 });
 
@@ -378,6 +376,6 @@ export const DbGetSchemaResponseSchema = Schema.Struct({
       name: Schema.String,
       type: Schema.String,
       config: Schema.optional(Schema.Unknown),
-    })
+    }),
   ),
 });

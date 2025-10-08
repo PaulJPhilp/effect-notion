@@ -47,7 +47,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toHaveLength(0);
     });
@@ -64,7 +64,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toContain("Unknown titlePropertyName: NonExistentTitle");
     });
@@ -84,10 +84,10 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toContain(
-        "Unknown filter property: NonExistentProperty at filter"
+        "Unknown filter property: NonExistentProperty at filter",
       );
     });
 
@@ -108,10 +108,10 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toContain(
-        "Unknown sort property: NonExistentProperty at sorts[0].property"
+        "Unknown sort property: NonExistentProperty at sorts[0].property",
       );
     });
 
@@ -135,15 +135,15 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toHaveLength(3);
       expect(errors).toContain("Unknown titlePropertyName: NonExistentTitle");
       expect(errors).toContain(
-        "Unknown filter property: NonExistentFilter at filter"
+        "Unknown filter property: NonExistentFilter at filter",
       );
       expect(errors).toContain(
-        "Unknown sort property: NonExistentSort at sorts[0].property"
+        "Unknown sort property: NonExistentSort at sorts[0].property",
       );
     });
 
@@ -159,7 +159,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toHaveLength(0);
     });
@@ -176,7 +176,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toHaveLength(0);
     });
@@ -204,7 +204,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toHaveLength(0);
     });
@@ -232,10 +232,10 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toContain(
-        "Unknown filter property: InvalidProperty at filter.and[1]"
+        "Unknown filter property: InvalidProperty at filter.and[1]",
       );
     });
 
@@ -262,7 +262,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toHaveLength(0);
     });
@@ -290,7 +290,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toHaveLength(0);
     });
@@ -307,7 +307,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       // Note: pageSize validation is not implemented in the current validation function
       expect(errors).toHaveLength(0);
@@ -325,7 +325,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       // Note: pageSize validation is not implemented in the current validation function
       expect(errors).toHaveLength(0);
@@ -343,7 +343,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        mockSchema
+        mockSchema,
       );
       expect(errors).toHaveLength(0);
     });
@@ -370,7 +370,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        emptySchema
+        emptySchema,
       );
       expect(errors).toContain("Unknown titlePropertyName: Title");
     });
@@ -405,7 +405,7 @@ describe("Validation Logic", () => {
 
       const errors = validateListArticlesRequestAgainstSchema(
         request,
-        customSchema
+        customSchema,
       );
       expect(errors).toHaveLength(0);
     });

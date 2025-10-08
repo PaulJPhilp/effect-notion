@@ -32,7 +32,7 @@ const retryStrategy = new SimpleRetryStrategy({
 // Simulate some API operations
 async function simulateApiCall(
   operation: string,
-  shouldFail = false
+  shouldFail = false,
 ): Promise<string> {
   const startTime = Date.now();
 
@@ -59,7 +59,7 @@ async function simulateApiCall(
     const duration = Date.now() - startTime;
     globalMetrics.recordDuration(
       `api_error_duration_${operation}_ms`,
-      duration
+      duration,
     );
     globalMetrics.incrementCounter(`api_errors_${operation}_total`, 1);
 
@@ -75,7 +75,7 @@ async function demonstrateCircuitBreaker() {
   for (let i = 0; i < 2; i++) {
     try {
       const result = await circuitBreaker.execute(() =>
-        simulateApiCall("circuit_breaker", false)
+        simulateApiCall("circuit_breaker", false),
       );
       console.log(`✓ ${result}`);
     } catch (error) {
@@ -89,7 +89,7 @@ async function demonstrateCircuitBreaker() {
   for (let i = 0; i < 4; i++) {
     try {
       await circuitBreaker.execute(() =>
-        simulateApiCall("circuit_breaker", true)
+        simulateApiCall("circuit_breaker", true),
       );
     } catch (error) {
       console.log(`✗ Failure ${i + 1}: ${error.message}`);
@@ -105,7 +105,7 @@ async function demonstrateCircuitBreaker() {
   // Try again after recovery
   try {
     const result = await circuitBreaker.execute(() =>
-      simulateApiCall("circuit_breaker", false)
+      simulateApiCall("circuit_breaker", false),
     );
     console.log(`✓ Recovery: ${result}`);
   } catch (error) {
@@ -150,9 +150,9 @@ function demonstrateMetrics() {
   const metrics = globalMetrics.getMetrics();
   console.log("Collected Metrics:");
 
-  Object.entries(metrics).forEach(([name, value]) => {
+  for (const [name, value] of Object.entries(metrics)) {
     console.log(`  ${name}: ${value}`);
-  });
+  }
 
   // Show circuit breaker stats
   const stats = circuitBreaker.getStats();
@@ -165,7 +165,7 @@ function demonstrateMetrics() {
       stats.lastFailureTime
         ? new Date(stats.lastFailureTime).toISOString()
         : "None"
-    }`
+    }`,
   );
 }
 

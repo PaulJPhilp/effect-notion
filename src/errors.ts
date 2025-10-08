@@ -109,7 +109,11 @@ export const tooManyRequests = (options?: {
     error: "Too Many Requests",
     ...(options?.detail !== undefined ? { detail: options.detail } : {}),
     ...(options?.retryAfterSeconds !== undefined
-      ? { headers: { "retry-after": String(options.retryAfterSeconds) } as const }
+      ? {
+          headers: {
+            "retry-after": String(options.retryAfterSeconds),
+          } as const,
+        }
       : {}),
   });
 

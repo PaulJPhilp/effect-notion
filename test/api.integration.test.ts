@@ -21,7 +21,7 @@ const TestLayer = Layer.mergeAll(
   NodeContext.layer,
   RequestIdService.Live,
   NotionClient.Default,
-  NotionService.Default
+  NotionService.Default,
 );
 
 const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer);
@@ -31,7 +31,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DB_ARTICLES_BLOG)(
   () => {
     it("GET /api/health should return 200 OK", async () => {
       const response = await testApp(
-        new Request("http://localhost/api/health")
+        new Request("http://localhost/api/health"),
       );
       expect(response.status).toBe(200);
       const body = await response.json();
@@ -41,8 +41,8 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DB_ARTICLES_BLOG)(
     it("GET /api/get-database-schema should return a valid schema", async () => {
       const response = await testApp(
         new Request(
-          `http://localhost/api/get-database-schema?databaseId=${NOTION_DB_ARTICLES_BLOG}`
-        )
+          `http://localhost/api/get-database-schema?databaseId=${NOTION_DB_ARTICLES_BLOG}`,
+        ),
       );
       expect(response.status).toBe(200);
       const body = await response.json();
@@ -54,8 +54,8 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DB_ARTICLES_BLOG)(
       const nonexistent = "00000000-0000-0000-0000-000000000000";
       const response = await testApp(
         new Request(
-          `http://localhost/api/get-database-schema?databaseId=${nonexistent}`
-        )
+          `http://localhost/api/get-database-schema?databaseId=${nonexistent}`,
+        ),
       );
       // Some environments may return 400 for invalid uuid formats; we use a valid uuid to trigger 404
       expect([400, 404, 500]).toContain(response.status);
@@ -81,11 +81,11 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DB_ARTICLES_BLOG)(
           body: JSON.stringify({
             databaseId: NOTION_DB_ARTICLES_BLOG,
           }),
-        })
+        }),
       );
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(Array.isArray(body.results)).toBe(true);
     });
-  }
+  },
 );

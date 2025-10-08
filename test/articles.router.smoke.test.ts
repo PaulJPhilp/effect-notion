@@ -1,16 +1,16 @@
-import { NodeContext } from "@effect/platform-node"
-import * as HttpApp from "@effect/platform/HttpApp"
-import * as HttpServerResponse from "@effect/platform/HttpServerResponse"
-import * as HttpRouter from "@effect/platform/HttpRouter"
-import { Layer, Logger, Effect } from "effect"
-import { describe, expect, it } from "vitest"
-import { app } from "../src/router.js"
-import { ArticlesRepository } from "../src/services/ArticlesRepository.js"
-import type { BaseEntity } from "../src/domain/logical/Common.js"
-import { AppConfigProviderLive } from "../src/config.js"
-import { RequestIdService } from "../src/http/requestId.js"
-import { NotionClient } from "../src/NotionClient.js"
-import { NotionService } from "../src/NotionService.js"
+import { NodeContext } from "@effect/platform-node";
+import * as HttpApp from "@effect/platform/HttpApp";
+import * as HttpRouter from "@effect/platform/HttpRouter";
+import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
+import { Effect, Layer, Logger } from "effect";
+import { describe, expect, it } from "vitest";
+import { NotionClient } from "../src/NotionClient.js";
+import { NotionService } from "../src/NotionService.js";
+import { AppConfigProviderLive } from "../src/config.js";
+import type { BaseEntity } from "../src/domain/logical/Common.js";
+import { RequestIdService } from "../src/http/requestId.js";
+import { app } from "../src/router.js";
+import { ArticlesRepository } from "../src/services/ArticlesRepository.js";
 
 const stubEntity: BaseEntity = {
   id: "blog_123",
@@ -27,7 +27,7 @@ const stubEntity: BaseEntity = {
   tags: ["x"],
   status: "published",
   publishedAt: new Date(0),
-}
+};
 
 const stubImpl = {
   list: () =>
@@ -40,9 +40,9 @@ const stubImpl = {
   create: () => Effect.succeed(stubEntity),
   update: () => Effect.succeed(stubEntity),
   delete: () => Effect.void,
-} as unknown as ArticlesRepository
+} as unknown as ArticlesRepository;
 
-const StubLayer = Layer.succeed(ArticlesRepository, stubImpl)
+const StubLayer = Layer.succeed(ArticlesRepository, stubImpl);
 
 const TestLayer = Layer.mergeAll(
   Logger.json,
@@ -51,10 +51,10 @@ const TestLayer = Layer.mergeAll(
   RequestIdService.Live,
   NotionClient.Default,
   NotionService.Default,
-  StubLayer
-)
+  StubLayer,
+);
 
-const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer)
+const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer);
 
 describe("articles router smoke", () => {
   it("POST /api/articles/list returns stub results", async () => {
@@ -63,16 +63,16 @@ describe("articles router smoke", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ source: "blog" }),
-      })
-    )
+      }),
+    );
     if (res.status !== 200) {
-      console.error("/api/articles/list body:", await res.text())
+      console.error("/api/articles/list body:", await res.text());
     }
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(Array.isArray(body.results)).toBe(true)
-    expect(body.results[0].id).toBe("blog_123")
-  })
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.results)).toBe(true);
+    expect(body.results[0].id).toBe("blog_123");
+  });
 
   it("POST /api/articles/create returns stub entity", async () => {
     const res = await testApp(
@@ -83,15 +83,15 @@ describe("articles router smoke", () => {
           source: "blog",
           data: { name: "New" },
         }),
-      })
-    )
+      }),
+    );
     if (res.status !== 201) {
-      console.error("/api/articles/create body:", await res.text())
+      console.error("/api/articles/create body:", await res.text());
     }
-    expect(res.status).toBe(201)
-    const body = await res.json()
-    expect(body.id).toBe("blog_123")
-  })
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.id).toBe("blog_123");
+  });
 
   it("POST /api/articles/update returns stub entity", async () => {
     const res = await testApp(
@@ -103,12 +103,12 @@ describe("articles router smoke", () => {
           pageId: "123",
           patch: { name: "Upd" },
         }),
-      })
-    )
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.id).toBe("blog_123")
-  })
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe("blog_123");
+  });
 
   it("POST /api/articles/delete returns 204", async () => {
     const res = await testApp(
@@ -116,20 +116,20 @@ describe("articles router smoke", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ source: "blog", pageId: "123" }),
-      })
-    )
+      }),
+    );
     if (res.status !== 204) {
-      console.error("/api/articles/delete body:", await res.text())
+      console.error("/api/articles/delete body:", await res.text());
     }
-    expect(res.status).toBe(204)
-  })
+    expect(res.status).toBe(204);
+  });
 
   it("GET /api/articles/get returns stub entity", async () => {
     const res = await testApp(
-      new Request("http://localhost/api/articles/get?source=blog&pageId=123")
-    )
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.id).toBe("blog_123")
-  })
-})
+      new Request("http://localhost/api/articles/get?source=blog&pageId=123"),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe("blog_123");
+  });
+});

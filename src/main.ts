@@ -1,7 +1,7 @@
+import { createServer } from "node:http";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import * as HttpMiddleware from "@effect/platform/HttpMiddleware";
 import * as HttpServer from "@effect/platform/HttpServer";
-import { createServer } from "node:http";
 // src/main.ts
 import { Effect, Layer, Logger } from "effect";
 import {
@@ -12,6 +12,8 @@ import {
 } from "./config.js";
 import { RequestIdService } from "./http/requestId.js";
 import { app } from "./router.js";
+import { ArticlesRepository } from "./services/ArticlesRepository.js";
+import { NotionClient } from "./services/NotionClient.js";
 import { NotionService } from "./services/NotionService/service.js";
 
 // The main application logic, dependent on AppConfig
@@ -25,14 +27,14 @@ const Main = Effect.gen(function* () {
   if (validation._tag === "Left") {
     yield* Effect.logWarning(
       `Configuration validation failed; continuing to serve. Health will report 503. detail=${String(
-        validation.left
-      )}`
+        validation.left,
+      )}`,
     );
   }
 
   // Apply request/response logging and CORS middleware
   const ServerLive = HttpServer.serve(
-    HttpMiddleware.logger(corsMiddleware(app))
+    HttpMiddleware.logger(corsMiddleware(app)),
   );
 
   // Create the server layer with the configured port
@@ -49,8 +51,8 @@ const Main = Effect.gen(function* () {
     Effect.provide(PlatformLive),
     Effect.scoped,
     Effect.tap(() =>
-      Effect.logInfo(`Server running on http://localhost:${config.port}`)
-    )
+      Effect.logInfo(`Server running on http://localhost:${config.port}`),
+    ),
   );
   // Return the program so Main has type Effect<void, E, R>
   return yield* main.pipe(Effect.asVoid);
@@ -58,7 +60,7 @@ const Main = Effect.gen(function* () {
 
 // Create log level layer from config
 const LogLevelLayer = Layer.unwrapEffect(
-  AppConfig.pipe(Effect.map((cfg) => Logger.minimumLogLevel(cfg.logLevel)))
+  AppConfig.pipe(Effect.map((cfg) => Logger.minimumLogLevel(cfg.logLevel))),
 );
 
 const AppLayers = Layer.mergeAll(
@@ -66,12 +68,14 @@ const AppLayers = Layer.mergeAll(
   LogLevelLayer,
   AppConfigProviderLive,
   RequestIdService.Live,
-  NotionService.Default
+  NotionClient.Default,
+  NotionService.Default,
+  ArticlesRepository.Default,
 );
 
 const Program = Main.pipe(
   Effect.provide(AppLayers),
-  Effect.asVoid
+  Effect.asVoid,
 ) as Effect.Effect<void, never, never>;
 
 NodeRuntime.runMain(Program);

@@ -1,21 +1,25 @@
 import { Effect, Option } from "effect";
 import type * as S from "effect/Schema";
-import * as NotionSchema from "../../NotionSchema.js";
+import type * as NotionSchema from "../../NotionSchema.js";
 import { AppConfig, AppConfigProviderLive } from "../../config.js";
 import type { BaseEntity, ListParams } from "../../domain/logical/Common.js";
 import { Sources } from "../../domain/registry/sources.js";
 import type { NotionError } from "../NotionClient/errors.js";
 import { NotionClient } from "../NotionClient/service.js";
 import { NotionService } from "../NotionService/service.js";
-import { mapUnknownToNotionError, tapWarn } from "./helpers.js";
 import type { ArticlesRepositoryApi } from "./api.js";
+import { mapUnknownToNotionError, tapWarn } from "./helpers.js";
 import type { ListResult } from "./types.js";
 
 export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
   "ArticlesRepository",
   {
     accessors: true,
-    dependencies: [NotionClient.Default, AppConfigProviderLive, NotionService.Default],
+    dependencies: [
+      NotionClient.Default,
+      AppConfigProviderLive,
+      NotionService.Default,
+    ],
     effect: Effect.gen(function* () {
       const notionClient = yield* NotionClient;
       const notionService = yield* NotionService;
@@ -31,19 +35,21 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
             });
             yield* Effect.logDebug(
               `ArticlesRepository.list built query source=${source} db=${cfg.databaseId} filter=${JSON.stringify(
-                query.filter ?? null
-              )} sorts=${JSON.stringify(query.sorts)}`
+                query.filter ?? null,
+              )} sorts=${JSON.stringify(query.sorts)}`,
             );
 
             // Get schema once (cached by NotionService) and use the pages variant
-            const schema = yield* notionService.getDatabaseSchema(cfg.databaseId);
+            const schema = yield* notionService.getDatabaseSchema(
+              cfg.databaseId,
+            );
             const resp = yield* notionService.listPagesWithSchema(
               cfg.databaseId,
               schema,
               query.filter,
               query.sorts,
               query.page_size,
-              query.start_cursor
+              query.start_cursor,
             );
 
             type NotionPage = S.Schema.Type<typeof NotionSchema.PageSchema>;
@@ -55,14 +61,14 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
                 source,
                 databaseId: cfg.databaseId,
                 page,
-              })
+              }),
             );
 
             return {
               results,
               hasMore: resp.hasMore,
               nextCursor: Option.getOrUndefined(
-                resp.nextCursor as Option.Option<string>
+                resp.nextCursor as Option.Option<string>,
               ),
             };
           }).pipe(
@@ -73,38 +79,38 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
                 hasFilter: !!params.filter,
                 hasSort: !!params.sort,
               },
-            })
+            }),
           ),
 
-        get: (
-          args: { source: string; pageId: string }
-        ): Effect.Effect<BaseEntity, NotionError> =>
-          notionClient
-            .retrievePage(args.pageId)
-            .pipe(
-              tapWarn(
-                `ArticlesRepository.get failed source=${args.source} page=${args.pageId}`
-              ),
-              Effect.mapError(mapUnknownToNotionError),
-              Effect.map((page) => {
-                const cfg = Sources.resolve("articles", args.source);
-                return cfg.adapter.fromNotionPage({
-                  source: args.source,
-                  databaseId: cfg.databaseId,
-                  page,
-                });
-              }),
-              Effect.withSpan("ArticlesRepository.get", {
-                attributes: {
-                  source: args.source,
-                  pageId: args.pageId,
-                },
-              })
+        get: (args: { source: string; pageId: string }): Effect.Effect<
+          BaseEntity,
+          NotionError
+        > =>
+          notionClient.retrievePage(args.pageId).pipe(
+            tapWarn(
+              `ArticlesRepository.get failed source=${args.source} page=${args.pageId}`,
             ),
+            Effect.mapError(mapUnknownToNotionError),
+            Effect.map((page) => {
+              const cfg = Sources.resolve("articles", args.source);
+              return cfg.adapter.fromNotionPage({
+                source: args.source,
+                databaseId: cfg.databaseId,
+                page,
+              });
+            }),
+            Effect.withSpan("ArticlesRepository.get", {
+              attributes: {
+                source: args.source,
+                pageId: args.pageId,
+              },
+            }),
+          ),
 
-        create: (
-          args: { source: string; data: Partial<BaseEntity> }
-        ): Effect.Effect<BaseEntity, NotionError> =>
+        create: (args: {
+          source: string;
+          data: Partial<BaseEntity>;
+        }): Effect.Effect<BaseEntity, NotionError> =>
           Effect.gen(function* () {
             const cfg = Sources.resolve("articles", args.source);
             const properties = cfg.adapter.toNotionProperties({
@@ -115,9 +121,9 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
               .createPage(cfg.databaseId, properties)
               .pipe(
                 tapWarn(
-                  `ArticlesRepository.create failed source=${args.source} db=${cfg.databaseId}`
+                  `ArticlesRepository.create failed source=${args.source} db=${cfg.databaseId}`,
                 ),
-                Effect.mapError(mapUnknownToNotionError)
+                Effect.mapError(mapUnknownToNotionError),
               );
 
             return cfg.adapter.fromNotionPage({
@@ -130,12 +136,14 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
               attributes: {
                 source: args.source,
               },
-            })
+            }),
           ),
 
-        update: (
-          args: { source: string; pageId: string; patch: Partial<BaseEntity> }
-        ): Effect.Effect<BaseEntity, NotionError> =>
+        update: (args: {
+          source: string;
+          pageId: string;
+          patch: Partial<BaseEntity>;
+        }): Effect.Effect<BaseEntity, NotionError> =>
           Effect.gen(function* () {
             const cfg = Sources.resolve("articles", args.source);
             const properties = cfg.adapter.toNotionProperties({
@@ -148,9 +156,9 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
               })
               .pipe(
                 tapWarn(
-                  `ArticlesRepository.update failed source=${args.source} page=${args.pageId}`
+                  `ArticlesRepository.update failed source=${args.source} page=${args.pageId}`,
                 ),
-                Effect.mapError(mapUnknownToNotionError)
+                Effect.mapError(mapUnknownToNotionError),
               );
 
             return cfg.adapter.fromNotionPage({
@@ -164,30 +172,29 @@ export class ArticlesRepository extends Effect.Service<ArticlesRepository>()(
                 source: args.source,
                 pageId: args.pageId,
               },
-            })
+            }),
           ),
 
-        delete: (
-          args: { source: string; pageId: string }
-        ): Effect.Effect<void, NotionError> =>
-          notionClient
-            .updatePage(args.pageId, { archived: true })
-            .pipe(
-              tapWarn(
-                `ArticlesRepository.delete failed source=${args.source} page=${args.pageId}`
-              ),
-              Effect.mapError(mapUnknownToNotionError),
-              Effect.asVoid,
-              Effect.withSpan("ArticlesRepository.delete", {
-                attributes: {
-                  source: args.source,
-                  pageId: args.pageId,
-                },
-              })
+        delete: (args: { source: string; pageId: string }): Effect.Effect<
+          void,
+          NotionError
+        > =>
+          notionClient.updatePage(args.pageId, { archived: true }).pipe(
+            tapWarn(
+              `ArticlesRepository.delete failed source=${args.source} page=${args.pageId}`,
             ),
+            Effect.mapError(mapUnknownToNotionError),
+            Effect.asVoid,
+            Effect.withSpan("ArticlesRepository.delete", {
+              attributes: {
+                source: args.source,
+                pageId: args.pageId,
+              },
+            }),
+          ),
       };
 
       return svc;
     }),
-  }
+  },
 ) {}

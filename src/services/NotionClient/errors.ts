@@ -17,13 +17,13 @@ export class BadRequestError extends Data.TaggedError("BadRequestError")<{
 }> {}
 
 export class InternalServerError extends Data.TaggedError(
-  "InternalServerError"
+  "InternalServerError",
 )<{
   readonly cause: unknown;
 }> {}
 
 export class RequestTimeoutError extends Data.TaggedError(
-  "RequestTimeoutError"
+  "RequestTimeoutError",
 )<{
   readonly timeoutMs: number;
   readonly cause?: unknown;
@@ -39,7 +39,7 @@ export class ConflictError extends Data.TaggedError("ConflictError")<{
 }> {}
 
 export class ServiceUnavailableError extends Data.TaggedError(
-  "ServiceUnavailableError"
+  "ServiceUnavailableError",
 )<{
   readonly cause: unknown;
 }> {}
@@ -57,12 +57,12 @@ export type NotionError =
 
 /**
  * Maps unknown errors to NotionError types.
- * 
+ *
  * If the error is already a tagged NotionError, returns it as-is.
  * Otherwise, wraps it in InternalServerError.
- * 
+ *
  * This helper ensures all errors in the Notion domain are properly typed.
- * 
+ *
  * @param e - Unknown error to map
  * @returns Properly typed NotionError
  */
@@ -74,7 +74,7 @@ export const mapToNotionError = (e: unknown): NotionError =>
 export const mapHttpStatusToNotionError = (
   status: number,
   body: string,
-  retryAfterSeconds?: number
+  retryAfterSeconds?: number,
 ): NotionError | undefined => {
   switch (status) {
     case 400:
@@ -91,9 +91,7 @@ export const mapHttpStatusToNotionError = (
     case 429:
       return new RateLimitedError({
         ...(body.length > 0 ? { cause: body } : {}),
-        ...(retryAfterSeconds !== undefined
-          ? { retryAfterSeconds }
-          : {}),
+        ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
       });
     case 503:
       return new ServiceUnavailableError({ cause: body });

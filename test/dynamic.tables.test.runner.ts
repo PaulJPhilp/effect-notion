@@ -37,7 +37,7 @@ const TestLayer = Layer.mergeAll(
   AppConfigProviderLive,
   NodeContext.layer,
   NotionClient.Default,
-  NotionService.Default
+  NotionService.Default,
 );
 
 // Test database schema
@@ -71,7 +71,7 @@ async function createTestDatabase() {
         title: `Test DB ${Date.now()}`,
         spec: testDbSpec,
       });
-    }).pipe(Effect.provide(TestLayer))
+    }).pipe(Effect.provide(TestLayer)),
   );
 
   console.log("✅ Test database created successfully!");
@@ -124,7 +124,7 @@ async function testCrudOperations(databaseId: string) {
       const page = yield* notionService.dynamicGetPage(createResult.id);
 
       console.log(
-        `✅ Page retrieved: ${page.properties.Name?.title?.[0]?.text?.content}`
+        `✅ Page retrieved: ${page.properties.Name?.title?.[0]?.text?.content}`,
       );
 
       // 4. Update the page
@@ -155,7 +155,7 @@ async function testCrudOperations(databaseId: string) {
       const tags = updatedPage.properties.Tags?.multi_select;
 
       console.log(
-        `✅ Updated values - Views: ${views}, Status: ${status}, Tags: ${tags?.length}`
+        `✅ Updated values - Views: ${views}, Status: ${status}, Tags: ${tags?.length}`,
       );
 
       return {
@@ -164,7 +164,7 @@ async function testCrudOperations(databaseId: string) {
         finalStatus: status,
         finalTags: tags,
       };
-    }).pipe(Effect.provide(TestLayer))
+    }).pipe(Effect.provide(TestLayer)),
   );
 
   console.log("\n🎉 All CRUD operations completed successfully!");
@@ -178,7 +178,7 @@ async function getDatabaseSchema(databaseId: string) {
     Effect.gen(function* () {
       const notionService = yield* NotionService;
       return yield* notionService.getDatabaseSchema(databaseId);
-    }).pipe(Effect.provide(TestLayer))
+    }).pipe(Effect.provide(TestLayer)),
   );
 
   console.log("✅ Database schema retrieved:");
@@ -188,9 +188,9 @@ async function getDatabaseSchema(databaseId: string) {
   console.log(`  Hash: ${result.propertiesHash}`);
 
   // Show property details
-  result.properties.forEach((prop) => {
+  for (const prop of result.properties) {
     console.log(`  - ${prop.name} (${prop.type})`);
-  });
+  }
 
   return result;
 }
@@ -203,44 +203,47 @@ async function main() {
       await createTestDatabase();
       break;
 
-    case "test-crud":
+    case "test-crud": {
       const dbId = process.argv[3];
       if (!dbId) {
         console.error(
-          "Please provide a database ID: bun run test/dynamic.tables.test.runner.ts test-crud <database-id>"
+          "Please provide a database ID: bun run test/dynamic.tables.test.runner.ts test-crud <database-id>",
         );
         process.exit(1);
       }
       await testCrudOperations(dbId);
       break;
+    }
 
-    case "get-schema":
+    case "get-schema": {
       const schemaDbId = process.argv[3];
       if (!schemaDbId) {
         console.error(
-          "Please provide a database ID: bun run test/dynamic.tables.test.runner.ts get-schema <database-id>"
+          "Please provide a database ID: bun run test/dynamic.tables.test.runner.ts get-schema <database-id>",
         );
         process.exit(1);
       }
       await getDatabaseSchema(schemaDbId);
       break;
+    }
 
-    case "full-test":
+    case "full-test": {
       console.log("Running full test suite...");
       const databaseId = await createTestDatabase();
       await getDatabaseSchema(databaseId);
       await testCrudOperations(databaseId);
       console.log("\n🎉 Full test suite completed!");
       break;
+    }
 
     default:
       console.log("Usage:");
       console.log("  bun run test/dynamic.tables.test.runner.ts create-db");
       console.log(
-        "  bun run test/dynamic.tables.test.runner.ts test-crud <database-id>"
+        "  bun run test/dynamic.tables.test.runner.ts test-crud <database-id>",
       );
       console.log(
-        "  bun run test/dynamic.tables.test.runner.ts get-schema <database-id>"
+        "  bun run test/dynamic.tables.test.runner.ts get-schema <database-id>",
       );
       console.log("  bun run test/dynamic.tables.test.runner.ts full-test");
       break;

@@ -26,7 +26,7 @@ const CORS_CONFIG = {
 } as const;
 
 const LogLevelLayer = Layer.unwrapEffect(
-  AppConfig.pipe(Effect.map((cfg) => Logger.minimumLogLevel(cfg.logLevel)))
+  AppConfig.pipe(Effect.map((cfg) => Logger.minimumLogLevel(cfg.logLevel))),
 );
 
 const AppLayers = Layer.mergeAll(
@@ -38,7 +38,7 @@ const AppLayers = Layer.mergeAll(
   NotionClient.Default,
   NotionService.Default,
   ArticlesRepository.Default,
-  HttpServer.layerContext
+  HttpServer.layerContext,
 );
 
 // Materialize the Effect HttpApp as a Web handler, applying CORS middleware and logging
@@ -94,7 +94,7 @@ export default async function handler(request: Request): Promise<Response> {
           "content-type": "application/json; charset=utf-8",
           "x-request-id": requestId,
         },
-      }
+      },
     );
   }
 }

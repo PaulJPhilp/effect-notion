@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import * as S from "effect/Schema";
 import { Either } from "effect";
+import * as S from "effect/Schema";
+import { describe, expect, it } from "vitest";
 import {
   formatParseError,
   prettyDecode,
@@ -14,7 +14,7 @@ describe("Schema error pretty-printing", () => {
       tags: S.Array(S.String),
     });
 
-    const bad = { name: 123, tags: ["ok", 42] } as any;
+    const bad = { name: 123, tags: ["ok", 42] } as unknown;
     const res = prettyDecode(schema)(bad);
 
     expect(Either.isLeft(res)).toBe(true);
@@ -30,7 +30,7 @@ describe("Schema error pretty-printing", () => {
 
   it("prettyEncode returns Left<string> with readable message", () => {
     const schema = S.String;
-    const res = prettyEncode(schema)(123 as any);
+    const res = prettyEncode(schema)(123 as unknown);
 
     expect(Either.isLeft(res)).toBe(true);
     if (Either.isLeft(res)) {

@@ -1,5 +1,4 @@
-import { describe, it, expect } from "vitest";
-import { Either } from "effect";
+import { describe, expect, it } from "vitest";
 import { blogArticleAdapter } from "../src/domain/adapters/articles/blog.adapter";
 
 // Round-trip tests for blog.adapter encode/decode mapping
@@ -32,14 +31,13 @@ describe("blog.adapter round-trip", () => {
     );
 
     // Spot check shapes
-    expect(props["Title"].title[0].text.content).toBe("Hello");
-    expect(props["Description"].rich_text[0].text.content).toBe("Desc");
+    expect(props.Title.title[0].text.content).toBe("Hello");
+    expect(props.Description.rich_text[0].text.content).toBe("Desc");
     expect(props["Content Type"].select?.name).toBe("Article");
-    expect(props["Tags"].multi_select.map((o: any) => o.name)).toEqual([
-      "Effect",
-      "TS",
-    ]);
-    expect(props["Status"].select?.name).toBe("Published");
+    expect(
+      props.Tags.multi_select.map((o: { name: string }) => o.name)
+    ).toEqual(["Effect", "TS"]);
+    expect(props.Status.select?.name).toBe("Published");
     expect(props["Published Date"].date?.start).toBe(
       "2024-01-02T03:04:05.000Z"
     );
@@ -61,7 +59,9 @@ describe("blog.adapter round-trip", () => {
 
     // Corrupt a single property to trigger a parse error while others remain valid
     // For example: make Content Type invalid (select name should be string)
-    (props as any)["Content Type"].select = { name: 123 };
+    (props as Record<string, { select?: { name: unknown } }>)[
+      "Content Type"
+    ].select = { name: 123 };
 
     const page = {
       id: "page_warn",
@@ -70,7 +70,14 @@ describe("blog.adapter round-trip", () => {
       created_by: { id: "u1", name: "Alice" },
       last_edited_by: { id: "u2", name: "Bob" },
       properties: props,
-    } as any;
+    } as {
+      id: string;
+      created_time: string;
+      last_edited_time: string;
+      created_by: { id: string; name: string };
+      last_edited_by: { id: string; name: string };
+      properties: Record<string, unknown>;
+    };
 
     const entity = blogArticleAdapter.fromNotionPage({
       source: "blog",
@@ -85,17 +92,15 @@ describe("blog.adapter round-trip", () => {
     expect(entity.description).toBe("Desc");
     expect(entity.tags).toEqual(["one", "two"]);
     expect(entity.status).toBe("Draft");
-    expect(entity.publishedAt?.toISOString()).toBe(
-      "2024-05-06T07:08:09.000Z"
-    );
+    expect(entity.publishedAt?.toISOString()).toBe("2024-05-06T07:08:09.000Z");
 
     // Invalid field should be omitted and warning collected
     expect(entity.type).toBeUndefined();
     expect(Array.isArray(entity.warnings)).toBe(true);
     expect((entity.warnings ?? []).length).toBeGreaterThan(0);
-    expect((entity.warnings ?? []).some((w) => w.includes("Content Type"))).toBe(
-      true
-    );
+    expect(
+      (entity.warnings ?? []).some((w) => w.includes("Content Type"))
+    ).toBe(true);
   });
 
   it("fromNotionPage decodes fields encoded by toNotionProperties", () => {
@@ -119,7 +124,14 @@ describe("blog.adapter round-trip", () => {
       created_by: { id: "u1", name: "Alice" },
       last_edited_by: { id: "u2", name: "Bob" },
       properties: props,
-    } as any;
+    } as {
+      id: string;
+      created_time: string;
+      last_edited_time: string;
+      created_by: { id: string; name: string };
+      last_edited_by: { id: string; name: string };
+      properties: Record<string, unknown>;
+    };
 
     const entity = blogArticleAdapter.fromNotionPage({
       source: "blog",
@@ -132,9 +144,7 @@ describe("blog.adapter round-trip", () => {
     expect(entity.type).toBe("Note");
     expect(entity.tags).toEqual(["A", "B"]);
     expect(entity.status).toBe("Draft");
-    expect(entity.publishedAt?.toISOString()).toBe(
-      "2024-02-03T04:05:06.000Z"
-    );
+    expect(entity.publishedAt?.toISOString()).toBe("2024-02-03T04:05:06.000Z");
 
     // also check system fields were set
     expect(entity.pageId).toBe("page_123");
@@ -155,15 +165,13 @@ describe("blog.adapter round-trip", () => {
       publishedAt: undefined,
       // empty array should encode to empty multi_select
       tags: [],
-    } satisfies Partial<
-      import("../src/domain/logical/Common").BaseEntity
-    >;
+    } satisfies Partial<import("../src/domain/logical/Common").BaseEntity>;
 
     const props = blogArticleAdapter.toNotionProperties({ patch });
     // Only Tags should be present
     expect(Object.keys(props)).toEqual(["Tags"]);
-    expect(Array.isArray(props["Tags"].multi_select)).toBe(true);
-    expect(props["Tags"].multi_select.length).toBe(0);
+    expect(Array.isArray(props.Tags.multi_select)).toBe(true);
+    expect(props.Tags.multi_select.length).toBe(0);
   });
 
   it("fromNotionPage: missing/partial properties handled", () => {
@@ -179,7 +187,14 @@ describe("blog.adapter round-trip", () => {
         // Deliberately omit Title, Description, Content Type, Status,
         // Published Date to simulate partial/missing properties
       },
-    } as any;
+    } as {
+      id: string;
+      created_time: string;
+      last_edited_time: string;
+      created_by: { id: string; name: string };
+      last_edited_by: { id: string; name: string };
+      properties: Record<string, unknown>;
+    };
 
     const entity = blogArticleAdapter.fromNotionPage({
       source: "blog",

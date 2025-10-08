@@ -1,6 +1,6 @@
 /**
  * Example: Update Article Publishing Workflow
- * 
+ *
  * This example demonstrates how to use the NotionService to:
  * 1. Fetch article metadata
  * 2. Update publishing status and date
@@ -8,8 +8,8 @@
  */
 
 import { Effect } from "effect";
-import { NotionService } from "../src/NotionService.js";
 import type { NotionError } from "../src/NotionClient.js";
+import { NotionService } from "../src/NotionService.js";
 
 /**
  * Publish an article by updating its status and published date
@@ -195,11 +195,7 @@ export const updateArticleMetadata = (
  */
 export const batchPublishArticles = (
   pageIds: string[]
-): Effect.Effect<
-  { published: number; failed: number },
-  never,
-  NotionService
-> =>
+): Effect.Effect<{ published: number; failed: number }, never, NotionService> =>
   Effect.gen(function* () {
     yield* Effect.logInfo(`Batch publishing ${pageIds.length} articles`);
 
@@ -245,7 +241,7 @@ export const publishWithValidation = (
 
     // Fetch current metadata
     const metadata = yield* notionService.getArticleMetadata(pageId);
-    const props = metadata.properties as Record<string, any>;
+    const props = metadata.properties as Record<string, unknown>;
 
     // Validate article is ready to publish
     // (This is a simplified example - adjust based on your schema)

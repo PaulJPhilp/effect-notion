@@ -23,7 +23,7 @@ function makeHandler() {
     NodeContext.layer,
     RequestIdService.Live,
     NotionClient.Default,
-    NotionService.Default
+    NotionService.Default,
   );
   const { handler } = HttpApp.toWebHandlerLayer(app, TestLayer);
   return handler;
@@ -46,7 +46,7 @@ describe("API failure paths", () => {
             number: { greater_than: 10 },
           },
         }),
-      })
+      }),
     );
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -61,7 +61,7 @@ describe("API failure paths", () => {
     const handler = makeHandler();
     const badId = "invalid-id";
     const response = await handler(
-      new Request(`http://localhost/api/get-article-metadata?pageId=${badId}`)
+      new Request(`http://localhost/api/get-article-metadata?pageId=${badId}`),
     );
     expect([400, 500]).toContain(response.status);
     let body: { code: string; requestId: string };
@@ -89,8 +89,8 @@ describe("API failure paths", () => {
       const dbId = "00000000-0000-0000-0000-000000000000";
       const response = await handler(
         new Request(
-          `http://localhost/api/get-database-schema?databaseId=${dbId}`
-        )
+          `http://localhost/api/get-database-schema?databaseId=${dbId}`,
+        ),
       );
       expect([401, 404, 500]).toContain(response.status);
       try {

@@ -1,15 +1,15 @@
-import { describe, it, expect } from "vitest";
-import * as S from "effect/Schema";
-import type { ParseError } from "effect/ParseResult";
 import { Either } from "effect";
+import type { ParseError } from "effect/ParseResult";
+import * as S from "effect/Schema";
+import { describe, expect, it } from "vitest";
 import {
-  PlainTextFromTitle as TitleCodec,
-  PlainTextFromRichText as RichTextCodec,
+  DateFromNotionDate as DateCodec,
   UrlListFromFiles as FilesCodec,
+  NumberFromFormula as FormulaNumberCodec,
   PeopleIdsFromPeople as PeopleCodec,
   RelationIdsFromRelation as RelationCodec,
-  DateFromNotionDate as DateCodec,
-  NumberFromFormula as FormulaNumberCodec,
+  PlainTextFromRichText as RichTextCodec,
+  PlainTextFromTitle as TitleCodec,
 } from "../src/domain/adapters/schema/index";
 
 // Dummy domain schema covering common field types
@@ -42,29 +42,21 @@ const NumberProp = S.Struct({ number: S.Number });
 const CheckboxProp = S.Struct({ checkbox: S.Boolean });
 const UrlProp = S.Struct({ url: S.Union(S.Null, S.String) });
 
-const SelectCodec = S.transform(
-  SelectProp,
-  S.Union(S.String, S.Undefined),
-  {
-    strict: true,
-    decode: (p, _i) => p.select?.name,
-    encode: (s, _a) => ({ select: s ? ({ name: s } as const) : null }),
-  }
-);
+const SelectCodec = S.transform(SelectProp, S.Union(S.String, S.Undefined), {
+  strict: true,
+  decode: (p, _i) => p.select?.name,
+  encode: (s, _a) => ({ select: s ? ({ name: s } as const) : null }),
+});
 
-const MultiSelectCodec = S.transform(
-  MultiSelectProp,
-  S.Array(S.String),
-  {
-    strict: true,
-    decode: (p, _i) => p.multi_select.map((o) => o.name),
-    encode: (arr, _a) => ({
-      multi_select: arr.map((name) => ({ name } as const)) as readonly {
-        readonly name: string;
-      }[],
-    }),
-  }
-);
+const MultiSelectCodec = S.transform(MultiSelectProp, S.Array(S.String), {
+  strict: true,
+  decode: (p, _i) => p.multi_select.map((o) => o.name),
+  encode: (arr, _a) => ({
+    multi_select: arr.map((name) => ({ name } as const)) as readonly {
+      readonly name: string;
+    }[],
+  }),
+});
 
 const NumberCodec = S.transform(NumberProp, S.Number, {
   strict: true,
@@ -78,22 +70,18 @@ const CheckboxCodec = S.transform(CheckboxProp, S.Boolean, {
   encode: (b, _a) => ({ checkbox: b } as const),
 });
 
-const UrlCodec = S.transform(
-  UrlProp,
-  S.Union(S.String, S.Undefined),
-  {
-    strict: true,
-    decode: (p, _i) => p.url ?? undefined,
-    encode: (u, _a) => ({ url: u ?? null } as const),
-  }
-);
+const UrlCodec = S.transform(UrlProp, S.Union(S.String, S.Undefined), {
+  strict: true,
+  decode: (p, _i) => p.url ?? undefined,
+  encode: (u, _a) => ({ url: u ?? null } as const),
+});
 
 // Generic mapping config
 type FieldCodec<A, I> = S.Schema<A, I, never>;
 
 type FieldMap = {
   notionName: string;
-  codec: FieldCodec<any, any>;
+  codec: FieldCodec<unknown, unknown>;
 };
 
 type AdapterConfig = Record<string, FieldMap>;
@@ -111,7 +99,7 @@ function decodeDomain(
   properties: Record<string, unknown>
 ): Either.Either<Domain, ParseError> {
   // produce a partial, then validate with DomainArticle at the end
-  const partial: any = {};
+  const partial: Record<string, unknown> = {};
   const errors: Array<ParseError> = [];
 
   for (const [k, m] of Object.entries(cfg) as [DomainKey, FieldMap][]) {
@@ -120,18 +108,17 @@ function decodeDomain(
     if (Either.isLeft(parsed)) {
       errors.push(parsed.left);
     } else {
-      partial[k] = parsed.right as any;
+      partial[k] = parsed.right;
     }
   }
 
   if (errors.length > 0) {
     // Return first error for simplicity in this POC
-    return Either.left(errors[0]!);
-  }
-  // We already hold decoded A-values (e.g., Date), so validate using encodeEither
-  const validated = S.encodeEither(DomainArticle)(partial);
-  if (Either.isLeft(validated)) {
-    return Either.left(validated.left);
+    const firstError = errors[0];
+    if (firstError === undefined) {
+      throw new Error("Unexpected empty error array");
+    }
+    return Either.left(firstError);
   }
   return Either.right(partial as Domain);
 }
@@ -143,9 +130,11 @@ function encodeProperties(
   const props: Record<string, unknown> = {};
   const errors: Array<ParseError> = [];
 
-  for (const [k, v] of Object.entries(patch) as [DomainKey, any][]) {
+  for (const [k, v] of Object.entries(patch) as [DomainKey, unknown][]) {
     const m = cfg[k];
-    if (!m) continue;
+    if (!m) {
+      continue;
+    }
     const encoded = S.encodeEither(m.codec)(v);
     if (Either.isLeft(encoded)) {
       errors.push(encoded.left);
@@ -155,26 +144,66 @@ function encodeProperties(
   }
 
   if (errors.length > 0) {
-    return Either.left(errors[0]!);
+    const firstError = errors[0];
+    if (firstError === undefined) {
+      throw new Error("Unexpected empty error array");
+    }
+    return Either.left(firstError);
   }
   return Either.right(props);
 }
 
 // Dummy mapping for all field types
 const cfg: StrongConfig = {
-  id: { notionName: "Id", codec: RichTextCodec },
-  title: { notionName: "Title", codec: TitleCodec },
-  slug: { notionName: "Slug", codec: RichTextCodec },
-  status: { notionName: "Status", codec: SelectCodec },
-  tags: { notionName: "Tags", codec: MultiSelectCodec },
-  views: { notionName: "Views", codec: NumberCodec },
-  featured: { notionName: "Featured", codec: CheckboxCodec },
-  url: { notionName: "Url", codec: UrlCodec },
-  publishedAt: { notionName: "Published At", codec: DateCodec },
-  authors: { notionName: "Authors", codec: PeopleCodec },
-  attachments: { notionName: "Attachments", codec: FilesCodec },
-  relatedIds: { notionName: "Related", codec: RelationCodec },
-  score: { notionName: "Score", codec: FormulaNumberCodec },
+  id: {
+    notionName: "Id",
+    codec: RichTextCodec as FieldCodec<unknown, unknown>,
+  },
+  title: {
+    notionName: "Title",
+    codec: TitleCodec as FieldCodec<unknown, unknown>,
+  },
+  slug: {
+    notionName: "Slug",
+    codec: RichTextCodec as FieldCodec<unknown, unknown>,
+  },
+  status: {
+    notionName: "Status",
+    codec: SelectCodec as FieldCodec<unknown, unknown>,
+  },
+  tags: {
+    notionName: "Tags",
+    codec: MultiSelectCodec as FieldCodec<unknown, unknown>,
+  },
+  views: {
+    notionName: "Views",
+    codec: NumberCodec as FieldCodec<unknown, unknown>,
+  },
+  featured: {
+    notionName: "Featured",
+    codec: CheckboxCodec as FieldCodec<unknown, unknown>,
+  },
+  url: { notionName: "Url", codec: UrlCodec as FieldCodec<unknown, unknown> },
+  publishedAt: {
+    notionName: "Published At",
+    codec: DateCodec as FieldCodec<unknown, unknown>,
+  },
+  authors: {
+    notionName: "Authors",
+    codec: PeopleCodec as FieldCodec<unknown, unknown>,
+  },
+  attachments: {
+    notionName: "Attachments",
+    codec: FilesCodec as FieldCodec<unknown, unknown>,
+  },
+  relatedIds: {
+    notionName: "Related",
+    codec: RelationCodec as FieldCodec<unknown, unknown>,
+  },
+  score: {
+    notionName: "Score",
+    codec: FormulaNumberCodec as FieldCodec<unknown, unknown>,
+  },
 };
 
 describe("Schema-driven adapter POC", () => {
@@ -238,28 +267,41 @@ describe("Schema-driven adapter POC", () => {
     const result = encodeProperties(cfg, patch);
     expect(Either.isRight(result)).toBe(true);
     if (Either.isRight(result)) {
-      const p = result.right as any;
-      expect(p.Title.title[0].text.content).toBe("New Title");
-      expect(p.Status.select.name).toBe("Published");
-      expect(p.Tags.multi_select.map((o: any) => o.name)).toEqual([
-        "x",
-        "y",
-      ]);
-      expect(p.Views.number).toBe(100);
-      expect(p.Featured.checkbox).toBe(false);
-      expect(p.Url.url).toBe(null);
-      expect(p["Published At"].date.start).toBe(
-        "2021-05-06T07:08:09.000Z"
+      const p = result.right as Record<string, unknown>;
+      expect(
+        (p.Title as { title: Array<{ text: { content: string } }> }).title[0]
+          .text.content
+      ).toBe("New Title");
+      expect((p.Status as { select: { name: string } }).select.name).toBe(
+        "Published"
       );
-      expect(p.Authors.people.map((u: any) => u.id)).toEqual(["a1"]);
-      expect(p.Attachments.files.map((f: any) => f.url)).toEqual([
-        "https://cdn.ex/a",
-      ]);
-      expect(p.Related.relation.map((r: any) => r.id)).toEqual([
-        "z1",
-        "z2",
-      ]);
-      expect(p.Score.formula).toEqual({ type: "number", number: null });
+      expect(
+        (p.Tags as { multi_select: Array<{ name: string }> }).multi_select.map(
+          (o) => o.name
+        )
+      ).toEqual(["x", "y"]);
+      expect((p.Views as { number: number }).number).toBe(100);
+      expect((p.Featured as { checkbox: boolean }).checkbox).toBe(false);
+      expect((p.Url as { url: null }).url).toBe(null);
+      expect(
+        (p["Published At"] as { date: { start: string } }).date.start
+      ).toBe("2021-05-06T07:08:09.000Z");
+      expect(
+        (p.Authors as { people: Array<{ id: string }> }).people.map((u) => u.id)
+      ).toEqual(["a1"]);
+      expect(
+        (p.Attachments as { files: Array<{ url: string }> }).files.map(
+          (f) => f.url
+        )
+      ).toEqual(["https://cdn.ex/a"]);
+      expect(
+        (p.Related as { relation: Array<{ id: string }> }).relation.map(
+          (r) => r.id
+        )
+      ).toEqual(["z1", "z2"]);
+      expect(
+        (p.Score as { formula: { type: string; number: null } }).formula
+      ).toEqual({ type: "number", number: null });
     }
   });
 
@@ -267,14 +309,14 @@ describe("Schema-driven adapter POC", () => {
     const bad = {
       Title: { title: [] },
       Views: { number: "not-a-number" },
-    } as any;
+    } as Record<string, unknown>;
 
     const result = decodeDomain(cfg, bad);
     expect(Either.isLeft(result)).toBe(true);
   });
 
   it("accumulates errors across fields (encode)", () => {
-    const bad: any = { views: "nope", tags: [1, 2] };
+    const bad = { views: "nope", tags: [1, 2] } as unknown as Partial<Domain>;
     const result = encodeProperties(cfg, bad);
     expect(Either.isLeft(result)).toBe(true);
   });

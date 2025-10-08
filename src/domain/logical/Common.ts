@@ -1,27 +1,23 @@
-import { Schema } from "effect"
+import { Schema } from "effect";
 
-const TrimmedString = Schema.transform(
-  Schema.String,
-  Schema.String,
-  {
-    decode: (value) => value.trim(),
-    encode: (value) => value,
-  }
-)
+const TrimmedString = Schema.transform(Schema.String, Schema.String, {
+  decode: (value) => value.trim(),
+  encode: (value) => value,
+});
 
-const NonEmptyTrimmedString = TrimmedString.pipe(Schema.minLength(1))
+const NonEmptyTrimmedString = TrimmedString.pipe(Schema.minLength(1));
 
 const NormalizedStringArray = Schema.transform(
   Schema.Array(Schema.String),
   Schema.Array(Schema.String),
   {
     decode: (values) => {
-      const trimmed = values.map((value) => value.trim())
-      return trimmed.filter((value) => value.length > 0)
+      const trimmed = values.map((value) => value.trim());
+      return trimmed.filter((value) => value.length > 0);
     },
     encode: (values) => values,
-  }
-)
+  },
+);
 
 export const BaseEntity = Schema.Struct({
   id: NonEmptyTrimmedString, // `${source}_${pageId}`
@@ -42,13 +38,13 @@ export const BaseEntity = Schema.Struct({
   status: Schema.optional(TrimmedString),
   publishedAt: Schema.optional(Schema.DateFromSelf),
   warnings: Schema.optional(NormalizedStringArray),
-})
-export type BaseEntity = Schema.Schema.Type<typeof BaseEntity>
+});
+export type BaseEntity = Schema.Schema.Type<typeof BaseEntity>;
 
 export const ListParams = Schema.Struct({
   source: NonEmptyTrimmedString,
   pageSize: Schema.optional(
-    Schema.Number.pipe(Schema.int(), Schema.between(1, 100))
+    Schema.Number.pipe(Schema.int(), Schema.between(1, 100)),
   ),
   startCursor: Schema.optional(TrimmedString),
   filter: Schema.optional(
@@ -58,23 +54,23 @@ export const ListParams = Schema.Struct({
       tagIn: Schema.optional(NormalizedStringArray),
       publishedAfter: Schema.optional(Schema.DateFromSelf),
       publishedBefore: Schema.optional(Schema.DateFromSelf),
-    })
+    }),
   ),
   sort: Schema.optional(
     Schema.Struct({
       key: Schema.Literal("publishedAt", "updatedAt", "createdAt", "name"),
       direction: Schema.Literal("ascending", "descending"),
-    })
+    }),
   ),
-})
-export type ListParams = Schema.Schema.Type<typeof ListParams>
+});
+export type ListParams = Schema.Schema.Type<typeof ListParams>;
 
 // Kind aliases (extend later if needed)
-export const Article = BaseEntity
-export type Article = BaseEntity
+export const Article = BaseEntity;
+export type Article = BaseEntity;
 
-export const Changelog = BaseEntity
-export type Changelog = BaseEntity
+export const Changelog = BaseEntity;
+export type Changelog = BaseEntity;
 
-export const Project = BaseEntity
-export type Project = BaseEntity
+export const Project = BaseEntity;
+export type Project = BaseEntity;

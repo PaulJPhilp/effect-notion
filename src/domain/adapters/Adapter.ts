@@ -1,26 +1,21 @@
-import type { BaseEntity, ListParams } from "../logical/Common.js"
+import type { BaseEntity, ListParams } from "../logical/Common.js";
 
 export interface EntityAdapter<E extends BaseEntity> {
-  toNotionQuery: (args: {
-    databaseId: string
-    params: ListParams
-  }) => {
-    filter?: any
-    sorts?: any[]
-    page_size: number
-    start_cursor?: string
-  }
+  toNotionQuery: (args: { databaseId: string; params: ListParams }) => {
+    filter?: unknown;
+    sorts?: unknown[];
+    page_size: number;
+    start_cursor?: string;
+  };
 
   fromNotionPage: (args: {
-    source: string
-    databaseId: string
-    page: any
-  }) => E
+    source: string;
+    databaseId: string;
+    page: unknown;
+  }) => E;
 
-  toNotionProperties: (args: {
-    patch: Partial<E>
-  }) => Record<string, any>
+  toNotionProperties: (args: { patch: Partial<E> }) => Record<string, unknown>;
 
-  toNotionBlocks?: (args: { markdown: string }) => any[]
-  fromNotionBlocks?: (args: { blocks: any[] }) => { markdown: string }
+  toNotionBlocks?: (args: { markdown: string }) => unknown[];
+  fromNotionBlocks?: (args: { blocks: unknown[] }) => { markdown: string };
 }

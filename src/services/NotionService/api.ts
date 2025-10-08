@@ -1,7 +1,5 @@
-import { Effect, Option } from "effect";
-import type {
-  NormalizedDatabaseSchema,
-} from "../../NotionSchema.js";
+import type { Effect, Option } from "effect";
+import type { NormalizedDatabaseSchema } from "../../NotionSchema.js";
 import type { NotionError } from "../NotionClient/errors.js";
 
 export interface NotionServiceApi {
@@ -16,11 +14,14 @@ export interface NotionServiceApi {
     sorts?: unknown,
     pageSize?: number,
     startCursor?: string
-  ) => Effect.Effect<{
-    results: ReadonlyArray<{ id: string; title: string }>;
-    hasMore: boolean;
-    nextCursor: Option.Option<string>;
-  }, NotionError>;
+  ) => Effect.Effect<
+    {
+      results: ReadonlyArray<{ id: string; title: string }>;
+      hasMore: boolean;
+      nextCursor: Option.Option<string>;
+    },
+    NotionError
+  >;
 
   listArticlesWithSchema: (
     databaseId: string,
@@ -30,11 +31,14 @@ export interface NotionServiceApi {
     sorts?: unknown,
     pageSize?: number,
     startCursor?: string
-  ) => Effect.Effect<{
-    results: ReadonlyArray<{ id: string; title: string }>;
-    hasMore: boolean;
-    nextCursor: Option.Option<string>;
-  }, NotionError>;
+  ) => Effect.Effect<
+    {
+      results: ReadonlyArray<{ id: string; title: string }>;
+      hasMore: boolean;
+      nextCursor: Option.Option<string>;
+    },
+    NotionError
+  >;
 
   listPagesWithSchema: (
     databaseId: string,
@@ -43,11 +47,14 @@ export interface NotionServiceApi {
     sorts?: unknown,
     pageSize?: number,
     startCursor?: string
-  ) => Effect.Effect<{
-    pages: ReadonlyArray<any>;
-    hasMore: boolean;
-    nextCursor: Option.Option<string>;
-  }, NotionError>;
+  ) => Effect.Effect<
+    {
+      pages: ReadonlyArray<unknown>;
+      hasMore: boolean;
+      nextCursor: Option.Option<string>;
+    },
+    NotionError
+  >;
 
   getArticleMetadata: (
     pageId: string
@@ -58,9 +65,7 @@ export interface NotionServiceApi {
     properties: Record<string, unknown>
   ) => Effect.Effect<{ properties: unknown }, NotionError>;
 
-  getArticleContent: (
-    pageId: string
-  ) => Effect.Effect<string, NotionError>;
+  getArticleContent: (pageId: string) => Effect.Effect<string, NotionError>;
 
   updateArticleContent: (
     pageId: string,

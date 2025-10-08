@@ -1,6 +1,6 @@
-import dotenv from "dotenv";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import dotenv from "dotenv";
 // src/config.ts
 import {
   Config,
@@ -41,31 +41,31 @@ export const AppConfig = Config.all({
   env: Config.string("NODE_ENV").pipe(
     Config.withDefault(NODE_ENV),
     Config.map((s) =>
-      s === "test" || s === "production" ? s : ("development" as Env)
-    )
+      s === "test" || s === "production" ? s : ("development" as Env),
+    ),
   ),
   port: Config.number("PORT").pipe(Config.withDefault(3000)),
   corsOrigin: Config.string("CORS_ORIGIN").pipe(Config.withDefault("*")),
   corsAllowedMethods: Config.string("CORS_ALLOWED_METHODS").pipe(
-    Config.withDefault("POST,GET,OPTIONS")
+    Config.withDefault("POST,GET,OPTIONS"),
   ),
   corsAllowedHeaders: Config.string("CORS_ALLOWED_HEADERS").pipe(
-    Config.withDefault("Content-Type,Authorization")
+    Config.withDefault("Content-Type,Authorization"),
   ),
   logLevel: Config.logLevel("LOG_LEVEL").pipe(
-    Config.withDefault(LogLevel.Info)
+    Config.withDefault(LogLevel.Info),
   ),
   // Optional, but required in production for integration paths.
   notionApiKey: Config.string("NOTION_API_KEY").pipe(Config.withDefault("")),
   // HTTP client timeout for Notion requests (milliseconds)
   notionHttpTimeoutMs: Config.number("NOTION_HTTP_TIMEOUT_MS").pipe(
-    Config.withDefault(10000)
+    Config.withDefault(10000),
   ),
 });
 
 // Provide a ConfigProvider that sources from process env with defaults
 export const AppConfigProviderLive = Layer.setConfigProvider(
-  ConfigProvider.fromEnv()
+  ConfigProvider.fromEnv(),
 );
 
 // Perform additional validation beyond parsing.
@@ -77,7 +77,7 @@ export const ValidatedAppConfig = Effect.gen(function* () {
     (!cfg.notionApiKey || cfg.notionApiKey.length === 0)
   ) {
     class ConfigValidationError extends Data.TaggedError(
-      "ConfigValidationError"
+      "ConfigValidationError",
     )<{
       readonly reason: string;
     }> {}
@@ -85,7 +85,7 @@ export const ValidatedAppConfig = Effect.gen(function* () {
     return yield* Effect.fail(
       new ConfigValidationError({
         reason: "NOTION_API_KEY is required in production environment",
-      })
+      }),
     );
   }
   return cfg;
@@ -111,17 +111,17 @@ export function buildCorsOptions(cfg: {
 // ----------------------------------------------------------------------------
 /**
  * Service for managing per-database field name overrides.
- * 
+ *
  * Allows mapping from application logical field names to actual Notion
  * property names on a per-database basis. This is useful when different
  * databases use different property names for the same logical concept.
- * 
+ *
  * Example: Database A uses "Name" for title, Database B uses "Title"
  */
 export type LogicalFieldMap = Readonly<Record<string, string>>;
 
 export class LogicalFieldOverridesService extends Context.Tag(
-  "LogicalFieldOverridesService"
+  "LogicalFieldOverridesService",
 )<
   LogicalFieldOverridesService,
   {
@@ -130,7 +130,7 @@ export class LogicalFieldOverridesService extends Context.Tag(
 >() {
   /**
    * Live layer with empty overrides.
-   * 
+   *
    * For production use, provide a custom layer with your database-specific
    * overrides using `LogicalFieldOverridesService.make()`.
    */
@@ -140,7 +140,7 @@ export class LogicalFieldOverridesService extends Context.Tag(
 
   /**
    * Creates a layer with specific field overrides.
-   * 
+   *
    * @example
    * ```typescript
    * const CustomOverrides = LogicalFieldOverridesService.make({
@@ -150,9 +150,9 @@ export class LogicalFieldOverridesService extends Context.Tag(
    * ```
    */
   static make(
-    overrides: Record<string, LogicalFieldMap>
+    overrides: Record<string, LogicalFieldMap>,
   ): Layer.Layer<LogicalFieldOverridesService> {
-    return Layer.succeed(this, {
+    return Layer.succeed(LogicalFieldOverridesService, {
       overrides: new Map(Object.entries(overrides)),
     });
   }
@@ -161,14 +161,14 @@ export class LogicalFieldOverridesService extends Context.Tag(
 /**
  * Resolves a logical field name to the actual Notion property name
  * for a specific database.
- * 
+ *
  * @param databaseId - The Notion database ID
  * @param logicalField - The logical field name (e.g., "title", "slug")
  * @returns Effect that yields the property name or undefined
  */
 export const resolveLogicalField = (
   databaseId: string,
-  logicalField: string
+  logicalField: string,
 ): Effect.Effect<string | undefined, never, LogicalFieldOverridesService> =>
   Effect.gen(function* () {
     const service = yield* LogicalFieldOverridesService;
@@ -178,11 +178,11 @@ export const resolveLogicalField = (
 
 /**
  * Resolves the title field override for a specific database.
- * 
+ *
  * @param databaseId - The Notion database ID
  * @returns Effect that yields the title property name or undefined
  */
 export const resolveTitleOverride = (
-  databaseId: string
+  databaseId: string,
 ): Effect.Effect<string | undefined, never, LogicalFieldOverridesService> =>
   resolveLogicalField(databaseId, "title");
