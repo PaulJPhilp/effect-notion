@@ -13,7 +13,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
   () => {
     if (!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID) {
       throw new Error(
-        "Missing Notion environment variables for integration tests"
+        "Missing Notion environment variables for integration tests",
       );
     }
     const apiKey = NOTION_API_KEY;
@@ -21,11 +21,11 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
     const pageId = NOTION_PAGE_ID;
 
     const TestConfigLayer = Layer.setConfigProvider(
-      ConfigProvider.fromMap(new Map([["NOTION_API_KEY", apiKey]]))
+      ConfigProvider.fromMap(new Map([["NOTION_API_KEY", apiKey]])),
     );
     const TestLayers = Layer.provide(
       NotionClient.Default,
-      Layer.merge(TestConfigLayer, AppConfigProviderLive)
+      Layer.merge(TestConfigLayer, AppConfigProviderLive),
     );
 
     type ExitLike =
@@ -47,7 +47,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.retrieveDatabase(databaseId);
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       expect(result.object).toBe("database");
       expect(result.id).toBe(databaseId);
@@ -59,7 +59,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.retrieveDatabase(invalidDatabaseId);
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       expectFailureCause(exit, notFoundLike);
     }, 20000);
@@ -67,17 +67,17 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
     it("retrieveDatabase should fail with InvalidApiKeyError for bad API key", async () => {
       const badApiKey = "bad_key";
       const BadKeyConfigLayer = Layer.setConfigProvider(
-        ConfigProvider.fromMap(new Map([["NOTION_API_KEY", badApiKey]]))
+        ConfigProvider.fromMap(new Map([["NOTION_API_KEY", badApiKey]])),
       );
       const BadKeyLayers = Layer.provide(
         NotionClient.Default,
-        BadKeyConfigLayer
+        BadKeyConfigLayer,
       );
       const exit = await Effect.runPromiseExit(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.retrieveDatabase(databaseId);
-        }).pipe(Effect.provide(BadKeyLayers))
+        }).pipe(Effect.provide(BadKeyLayers)),
       );
       expectFailureCause(exit, /InvalidApiKeyError/);
     }, 20000);
@@ -87,7 +87,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.queryDatabase(databaseId, {});
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       expect(result.object).toBe("list");
       expect(Array.isArray(result.results)).toBe(true);
@@ -99,7 +99,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.queryDatabase(invalidDatabaseId, {});
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       expectFailureCause(exit, notFoundLike);
     }, 20000);
@@ -109,7 +109,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.retrieveBlockChildren(apiKey, pageId);
-        }).pipe(Effect.provide(NotionClient.Default))
+        }).pipe(Effect.provide(NotionClient.Default)),
       );
       if (exit._tag === "Failure") {
         expect(String(exit.cause)).toMatch(serviceUnavailableLike);
@@ -129,7 +129,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.retrieveBlockChildren(apiKey, invalidPageId);
-        }).pipe(Effect.provide(NotionClient.Default))
+        }).pipe(Effect.provide(NotionClient.Default)),
       );
       expectFailureCause(exit, notFoundLike);
     }, 20000);
@@ -153,7 +153,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.appendBlockChildren(pageId, blocksToAppend);
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       if (appendExit._tag === "Failure") {
         expect(String(appendExit.cause)).toMatch(serviceUnavailableLike);
@@ -169,7 +169,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.deleteBlock(newBlockId);
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       if (deleteExit._tag === "Failure") {
         expect(String(deleteExit.cause)).toMatch(serviceUnavailableLike);
@@ -184,7 +184,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.deleteBlock(invalidBlockId);
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       expectFailureCause(exit, serviceUnavailableLike);
     }, 20000);
@@ -208,7 +208,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.appendBlockChildren(pageId, blocksToAppend);
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       if (appendExit._tag === "Failure") {
         expect(String(appendExit.cause)).toMatch(serviceUnavailableLike);
@@ -226,7 +226,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
         Effect.gen(function* () {
           const client = yield* NotionClient;
           return yield* client.deleteBlock(newBlockId);
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       if (cleanupExit._tag === "Failure") {
         expect(String(cleanupExit.cause)).toMatch(serviceUnavailableLike);
@@ -254,11 +254,11 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_DATABASE_ID || !NOTION_PAGE_ID)(
           const client = yield* NotionClient;
           return yield* client.appendBlockChildren(
             invalidPageId,
-            blocksToAppend
+            blocksToAppend,
           );
-        }).pipe(Effect.provide(TestLayers))
+        }).pipe(Effect.provide(TestLayers)),
       );
       expectFailureCause(exit, serviceUnavailableLike);
     }, 20000);
-  }
+  },
 );

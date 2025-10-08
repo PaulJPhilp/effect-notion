@@ -26,8 +26,8 @@ const Main = Effect.gen(function* () {
   const res = yield* eff.pipe(
     Effect.map((ok) => ({ ok: true as const, value: ok })),
     Effect.catchAll((e) =>
-      Effect.succeed({ ok: false as const, error: e as unknown })
-    )
+      Effect.succeed({ ok: false as const, error: e as unknown }),
+    ),
   );
 
   console.log(JSON.stringify(res, Object.getOwnPropertyNames(res), 2));
@@ -35,8 +35,8 @@ const Main = Effect.gen(function* () {
 
 Effect.runPromise(
   Main.pipe(
-    Effect.provide(Layer.mergeAll(NotionClient.Default, AppConfigProviderLive))
-  )
+    Effect.provide(Layer.mergeAll(NotionClient.Default, AppConfigProviderLive)),
+  ),
 ).catch((e) => {
   console.error("diag-query failed", e);
   process.exit(1);

@@ -18,7 +18,7 @@ const FullLayer = Layer.mergeAll(
   AppConfigProviderLive,
   ArticlesRepository.Default,
   NotionClient.Default,
-  NotionService.Default
+  NotionService.Default,
 );
 
 const MinimalLayer = Layer.mergeAll(
@@ -27,7 +27,7 @@ const MinimalLayer = Layer.mergeAll(
   AppConfigProviderLive,
   ArticlesRepository.Default,
   NotionClient.Default,
-  NotionService.Default
+  NotionService.Default,
 );
 
 // Pre-response logging handler (logs before platform converts response)
@@ -39,7 +39,7 @@ const preLog: HttpApp.PreResponseHandler = (req, res) =>
     const bodyObj = (res as { body?: { _tag?: string } } | undefined)?.body;
     const bodyTag =
       bodyObj && typeof bodyObj === "object" && "_tag" in bodyObj
-        ? (bodyObj as { _tag?: string })._tag ?? "<none>"
+        ? ((bodyObj as { _tag?: string })._tag ?? "<none>")
         : "<none>";
     console.log("[pre] url=", url);
     console.log("[pre] status=", status);
@@ -49,22 +49,22 @@ const preLog: HttpApp.PreResponseHandler = (req, res) =>
 
 const appWithPre = HttpApp.withPreResponseHandler(
   app,
-  preLog
+  preLog,
 ) as unknown as HttpApp.Default<never, never>;
 const { handler: fullHandler } = HttpApp.toWebHandlerLayer(
   appWithPre,
-  FullLayer
+  FullLayer,
 );
 const { handler: minimalHandler } = HttpApp.toWebHandlerLayer(
   appWithPre,
-  MinimalLayer
+  MinimalLayer,
 );
 
 // Build a minimal app directly to sanity-check adapter
 const tinyRouter = HttpRouter.empty.pipe(
   HttpRouter.get(
     "/api/health",
-    Effect.succeed(HttpServerResponse.text("tiny-ok\n", { status: 200 }))
+    Effect.succeed(HttpServerResponse.text("tiny-ok\n", { status: 200 })),
   ),
   HttpRouter.catchAll((e) =>
     HttpServerResponse.json(
@@ -72,9 +72,9 @@ const tinyRouter = HttpRouter.empty.pipe(
         error: String(e),
         tag: (e as { _tag?: string } | undefined)?._tag,
       },
-      { status: 500 }
-    )
-  )
+      { status: 500 },
+    ),
+  ),
 );
 const tinyApp = HttpRouter.toHttpApp(tinyRouter) as unknown as HttpApp.Default<
   never,
@@ -82,15 +82,15 @@ const tinyApp = HttpRouter.toHttpApp(tinyRouter) as unknown as HttpApp.Default<
 >;
 const tinyAppLogged = HttpApp.withPreResponseHandler(tinyApp, preLog);
 const tinyHandler = HttpApp.toWebHandler(
-  tinyAppLogged as unknown as HttpApp.Default<never, never>
+  tinyAppLogged as unknown as HttpApp.Default<never, never>,
 );
 
 // Even more minimal: always-200 app (no router at all)
 const microApp = Effect.succeed(
-  HttpServerResponse.text("micro-ok\n", { status: 200 })
+  HttpServerResponse.text("micro-ok\n", { status: 200 }),
 ) as unknown as HttpApp.Default<never, never>;
 const microHandler = HttpApp.toWebHandler(
-  microApp as unknown as HttpApp.Default<never, never>
+  microApp as unknown as HttpApp.Default<never, never>,
 );
 
 async function main() {
@@ -108,7 +108,7 @@ async function main() {
   console.log("Requesting:", path, method, rawBody ?? "");
   try {
     const res1 = await fullHandler(
-      new Request(`http://localhost${path}`, init)
+      new Request(`http://localhost${path}`, init),
     );
     const text1 = await res1.text();
     console.log("full: status=", res1.status);
@@ -119,13 +119,13 @@ async function main() {
   }
   try {
     const res2 = await minimalHandler(
-      new Request(`http://localhost${path}`, init)
+      new Request(`http://localhost${path}`, init),
     );
     const text2 = await res2.text();
     console.log("minimal: status=", res2.status);
     console.log(
       "minimal: headers=",
-      Object.fromEntries(res2.headers.entries())
+      Object.fromEntries(res2.headers.entries()),
     );
     console.log("minimal: body=", text2);
   } catch (e) {
@@ -133,7 +133,7 @@ async function main() {
   }
   try {
     const res3 = await tinyHandler(
-      new Request(`http://localhost${path}`, init)
+      new Request(`http://localhost${path}`, init),
     );
     const text3 = await res3.text();
     console.log("tiny: status=", res3.status);

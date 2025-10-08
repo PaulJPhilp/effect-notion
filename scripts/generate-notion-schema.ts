@@ -93,19 +93,19 @@ export function normalize(db: NotionDb) {
   const entries = Object.entries(db.properties).map(([name, cfg]) => {
     const type =
       typeof cfg === "object" && cfg !== null && "type" in cfg
-        ? (cfg as { type?: unknown }).type as string ?? "unknown"
-        : "unknown"
-    return { name, type, cfg }
-  })
-  const title = entries.find((p) => p.type === "title")?.name ?? null
-  return { entries, title } as const
+        ? (((cfg as { type?: unknown }).type as string) ?? "unknown")
+        : "unknown";
+    return { name, type, cfg };
+  });
+  const title = entries.find((p) => p.type === "title")?.name ?? null;
+  return { entries, title } as const;
 }
 
 function genTypesModule(
   databaseId: string,
   lastEditedTime: string,
   props: ReadonlyArray<{ name: string; type: string }>,
-  title: string | null
+  title: string | null,
 ) {
   const namesUnion = props
     .map((p) => `'${p.name.replace(/'/g, "\\'")}'`)
@@ -280,7 +280,7 @@ async function main() {
     db.id,
     db.last_edited_time,
     entries,
-    title
+    title,
   );
   writeFileSync(outAbs, typesModule, "utf8");
   console.log(`Wrote ${outPath}`);
@@ -297,7 +297,7 @@ async function main() {
   if (emitDomainSchema) {
     const domainOut = outPath.replace(
       /notion-schema\.ts$/,
-      "notion-domain.schema.ts"
+      "notion-domain.schema.ts",
     );
     const domainAbs = resolve(domainOut);
     mkdirSync(dirname(domainAbs), { recursive: true });

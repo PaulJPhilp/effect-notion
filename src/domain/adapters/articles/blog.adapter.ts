@@ -70,7 +70,7 @@ const buildBlogSchemaConfig = () => {
     strict: true,
     decode: (p) => p.multi_select.map((o) => o.name),
     encode: (arr) => ({
-      multi_select: arr.map((name) => ({ name } as const)) as readonly {
+      multi_select: arr.map((name) => ({ name }) as const) as readonly {
         readonly name: string;
       }[],
     }),
@@ -110,7 +110,7 @@ function buildFilter(params: ListParams) {
       ...params.filter.tagIn.map((t: string) => ({
         property: P.tags,
         multi_select: { contains: t },
-      }))
+      })),
     );
   }
   if (params.filter?.publishedAfter) {
@@ -204,7 +204,7 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
         const msg = formatParseError(res.left);
         // Include source, pageId, property name for diagnostics
         logWarn(
-          `blog.adapter.fromNotionPage decode failed: src=${source} page=${pageTyped.id} prop=${m.notionName} -> ${msg}`
+          `blog.adapter.fromNotionPage decode failed: src=${source} page=${pageTyped.id} prop=${m.notionName} -> ${msg}`,
         );
         warnings.push(`prop=${m.notionName}: ${msg}`);
       }
@@ -223,11 +223,11 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       updatedAt: new Date(pageTyped.last_edited_time),
       createdBy:
         pageTyped.created_by && typeof pageTyped.created_by === "object"
-          ? pageTyped.created_by?.name ?? pageTyped.created_by?.id
+          ? (pageTyped.created_by?.name ?? pageTyped.created_by?.id)
           : undefined,
       updatedBy:
         pageTyped.last_edited_by && typeof pageTyped.last_edited_by === "object"
-          ? pageTyped.last_edited_by?.name ?? pageTyped.last_edited_by?.id
+          ? (pageTyped.last_edited_by?.name ?? pageTyped.last_edited_by?.id)
           : undefined,
 
       type: decoded.type,
@@ -257,11 +257,18 @@ export const blogArticleAdapter: EntityAdapter<BaseEntity> = {
       if (v === undefined) {
         continue;
       }
-      const m = (cfg as Record<string, { notionName: string; codec: S.Schema<unknown, unknown> }>)[k]
-      if (!m) { continue }
-      const res = S.encodeEither(m.codec)(v)
+      const m = (
+        cfg as Record<
+          string,
+          { notionName: string; codec: S.Schema<unknown, unknown> }
+        >
+      )[k];
+      if (!m) {
+        continue;
+      }
+      const res = S.encodeEither(m.codec)(v);
       if (Either.isRight(res)) {
-        props[m.notionName] = res.right
+        props[m.notionName] = res.right;
       }
     }
 

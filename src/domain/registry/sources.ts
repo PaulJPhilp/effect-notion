@@ -22,7 +22,7 @@ export type SourceConfig<E extends BaseEntity = BaseEntity> = {
  * Error thrown when a requested source is not found in the registry.
  */
 export class SourceNotFoundError extends Data.TaggedError(
-  "SourceNotFoundError"
+  "SourceNotFoundError",
 )<{
   readonly kind: Kind;
   readonly alias: string;
@@ -49,7 +49,7 @@ export class SourceConfigError extends Data.TaggedError("SourceConfigError")<{
  */
 function processConfigSource(
   item: unknown,
-  defaults: unknown
+  defaults: unknown,
 ): SourceConfig | undefined {
   // biome-ignore lint/suspicious/noExplicitAny: type bridge for dynamic config loading
   const processed = applyDefaults(item as any, defaults as any) as {
@@ -64,7 +64,7 @@ function processConfigSource(
   // Skip if database ID is empty after env var substitution
   if (!processed.databaseId || processed.databaseId.trim().length === 0) {
     console.warn(
-      `[Sources] Skipping source '${processed.alias}': database ID not configured (check environment variables)`
+      `[Sources] Skipping source '${processed.alias}': database ID not configured (check environment variables)`,
     );
     return undefined;
   }
@@ -73,10 +73,10 @@ function processConfigSource(
   const adapter = getAdapter(processed.kind, processed.adapter);
   if (!adapter) {
     console.error(
-      `[Sources] No adapter found for ${processed.kind}/${processed.adapter} (source: ${processed.alias})`
+      `[Sources] No adapter found for ${processed.kind}/${processed.adapter} (source: ${processed.alias})`,
     );
     console.error(
-      `[Sources] Skipping source '${processed.alias}'. Register the adapter in src/domain/adapters/registry.ts`
+      `[Sources] Skipping source '${processed.alias}'. Register the adapter in src/domain/adapters/registry.ts`,
     );
     return undefined;
   }
@@ -106,7 +106,7 @@ function logLoadedSources(sources: ReadonlyArray<SourceConfig>) {
     }
   } else {
     console.warn(
-      "[Sources] No sources configured. Check sources.config.json and environment variables."
+      "[Sources] No sources configured. Check sources.config.json and environment variables.",
     );
   }
 }
@@ -120,11 +120,11 @@ const loadFromConfig = (): ReadonlyArray<SourceConfig> => {
     Effect.tap((config) => validateConfig(config)),
     Effect.catchAll((error) => {
       console.warn(
-        `[Sources] Failed to load config from ${configPath}: ${error.message}`
+        `[Sources] Failed to load config from ${configPath}: ${error.message}`,
       );
       console.warn("[Sources] Falling back to empty source list");
       return Effect.succeed({ version: "1.0", sources: [] });
-    })
+    }),
   );
 
   const result = Effect.runSync(configEffect);
@@ -133,8 +133,8 @@ const loadFromConfig = (): ReadonlyArray<SourceConfig> => {
     .map((item) =>
       processConfigSource(
         item,
-        "defaults" in result ? result.defaults : undefined
-      )
+        "defaults" in result ? result.defaults : undefined,
+      ),
     )
     .filter((source): source is SourceConfig => source !== undefined);
 
@@ -195,7 +195,7 @@ export const Sources = {
    */
   resolveEffect(
     kind: Kind,
-    alias: string
+    alias: string,
   ): Effect.Effect<SourceConfig, SourceNotFoundError> {
     const s = SOURCES_CACHE.find((s) => s.kind === kind && s.alias === alias);
     if (!s) {

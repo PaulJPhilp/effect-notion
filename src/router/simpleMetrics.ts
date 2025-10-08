@@ -3,10 +3,10 @@ import * as HttpServerRequest from "@effect/platform/HttpServerRequest";
 import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
 import { Effect, Metric } from "effect";
 import {
+  type RequestIdService,
   addRequestIdToHeaders,
   getRequestId,
   setCurrentRequestId,
-  type RequestIdService,
 } from "../http/requestId.js";
 
 /**
@@ -16,7 +16,7 @@ import {
  * in a simple text format.
  */
 export const applySimpleMetricsRoutes = <E, R>(
-  router: HttpRouter.HttpRouter<E, R>
+  router: HttpRouter.HttpRouter<E, R>,
 ): HttpRouter.HttpRouter<E, R | RequestIdService> =>
   router.pipe(
     HttpRouter.get(
@@ -49,11 +49,11 @@ export const applySimpleMetricsRoutes = <E, R>(
             {
               "content-type": "text/plain; charset=utf-8",
             },
-            requestId
+            requestId,
           ),
         });
-      })
-    )
+      }),
+    ),
   );
 
 export default applySimpleMetricsRoutes;

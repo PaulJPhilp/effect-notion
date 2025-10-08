@@ -52,7 +52,7 @@ const MultiSelectCodec = S.transform(MultiSelectProp, S.Array(S.String), {
   strict: true,
   decode: (p, _i) => p.multi_select.map((o) => o.name),
   encode: (arr, _a) => ({
-    multi_select: arr.map((name) => ({ name } as const)) as readonly {
+    multi_select: arr.map((name) => ({ name }) as const) as readonly {
       readonly name: string;
     }[],
   }),
@@ -61,19 +61,19 @@ const MultiSelectCodec = S.transform(MultiSelectProp, S.Array(S.String), {
 const NumberCodec = S.transform(NumberProp, S.Number, {
   strict: true,
   decode: (p, _i) => p.number,
-  encode: (n, _a) => ({ number: n } as const),
+  encode: (n, _a) => ({ number: n }) as const,
 });
 
 const CheckboxCodec = S.transform(CheckboxProp, S.Boolean, {
   strict: true,
   decode: (p, _i) => p.checkbox,
-  encode: (b, _a) => ({ checkbox: b } as const),
+  encode: (b, _a) => ({ checkbox: b }) as const,
 });
 
 const UrlCodec = S.transform(UrlProp, S.Union(S.String, S.Undefined), {
   strict: true,
   decode: (p, _i) => p.url ?? undefined,
-  encode: (u, _a) => ({ url: u ?? null } as const),
+  encode: (u, _a) => ({ url: u ?? null }) as const,
 });
 
 // Generic mapping config
@@ -96,7 +96,7 @@ type StrongConfig = Record<DomainKey, FieldMap>;
 // Generic adapter operations powered by the config
 function decodeDomain(
   cfg: StrongConfig,
-  properties: Record<string, unknown>
+  properties: Record<string, unknown>,
 ): Either.Either<Domain, ParseError> {
   // produce a partial, then validate with DomainArticle at the end
   const partial: Record<string, unknown> = {};
@@ -125,7 +125,7 @@ function decodeDomain(
 
 function encodeProperties(
   cfg: StrongConfig,
-  patch: Partial<Domain>
+  patch: Partial<Domain>,
 ): Either.Either<Record<string, unknown>, ParseError> {
   const props: Record<string, unknown> = {};
   const errors: Array<ParseError> = [];
@@ -270,37 +270,39 @@ describe("Schema-driven adapter POC", () => {
       const p = result.right as Record<string, unknown>;
       expect(
         (p.Title as { title: Array<{ text: { content: string } }> }).title[0]
-          .text.content
+          .text.content,
       ).toBe("New Title");
       expect((p.Status as { select: { name: string } }).select.name).toBe(
-        "Published"
+        "Published",
       );
       expect(
         (p.Tags as { multi_select: Array<{ name: string }> }).multi_select.map(
-          (o) => o.name
-        )
+          (o) => o.name,
+        ),
       ).toEqual(["x", "y"]);
       expect((p.Views as { number: number }).number).toBe(100);
       expect((p.Featured as { checkbox: boolean }).checkbox).toBe(false);
       expect((p.Url as { url: null }).url).toBe(null);
       expect(
-        (p["Published At"] as { date: { start: string } }).date.start
+        (p["Published At"] as { date: { start: string } }).date.start,
       ).toBe("2021-05-06T07:08:09.000Z");
       expect(
-        (p.Authors as { people: Array<{ id: string }> }).people.map((u) => u.id)
+        (p.Authors as { people: Array<{ id: string }> }).people.map(
+          (u) => u.id,
+        ),
       ).toEqual(["a1"]);
       expect(
         (p.Attachments as { files: Array<{ url: string }> }).files.map(
-          (f) => f.url
-        )
+          (f) => f.url,
+        ),
       ).toEqual(["https://cdn.ex/a"]);
       expect(
         (p.Related as { relation: Array<{ id: string }> }).relation.map(
-          (r) => r.id
-        )
+          (r) => r.id,
+        ),
       ).toEqual(["z1", "z2"]);
       expect(
-        (p.Score as { formula: { type: string; number: null } }).formula
+        (p.Score as { formula: { type: string; number: null } }).formula,
       ).toEqual({ type: "number", number: null });
     }
   });

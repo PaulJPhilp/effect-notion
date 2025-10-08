@@ -9,10 +9,10 @@ import type { ListParams } from "../domain/logical/Common.js";
 import { ListParams as ListParamsSchema } from "../domain/logical/Common.js";
 import { badRequest } from "../errors.js";
 import {
+  type RequestIdService,
   addRequestIdToHeaders,
   getRequestId,
   setCurrentRequestId,
-  type RequestIdService,
 } from "../http/requestId.js";
 import { ArticlesRepository } from "../services/ArticlesRepository.js";
 import type { NotionError } from "../services/NotionClient/errors.js";
@@ -33,7 +33,7 @@ const CreateRequest = Schema.Struct({
       tags: Schema.optional(Schema.Array(Schema.String)),
       status: Schema.optional(Schema.String),
       publishedAt: Schema.optional(Schema.DateFromSelf),
-    })
+    }),
   ),
 });
 
@@ -48,7 +48,7 @@ const UpdateRequest = Schema.Struct({
       tags: Schema.optional(Schema.Array(Schema.String)),
       status: Schema.optional(Schema.String),
       publishedAt: Schema.optional(Schema.DateFromSelf),
-    })
+    }),
   ),
 });
 
@@ -58,7 +58,7 @@ const DeleteRequest = Schema.Struct({
 });
 
 export const applyArticlesRoutes = <E, R>(
-  router: HttpRouter.HttpRouter<E, R>
+  router: HttpRouter.HttpRouter<E, R>,
 ): HttpRouter.HttpRouter<
   E | RequestError | NotionError | HttpBodyError | ParseError,
   R | ArticlesRepository | RequestIdService
@@ -75,7 +75,7 @@ export const applyArticlesRoutes = <E, R>(
 
         const body: ListParams = yield* HttpServerRequest.schemaBodyJson(
           ListParamsSchema,
-          { onExcessProperty: "error" }
+          { onExcessProperty: "error" },
         );
         const repo = yield* ArticlesRepository;
         const result = yield* repo.list(body);
@@ -84,11 +84,11 @@ export const applyArticlesRoutes = <E, R>(
         return yield* HttpServerResponse.json(result).pipe(
           Effect.map((response) =>
             HttpServerResponse.setHeaders(
-              addRequestIdToHeaders(response.headers, requestId)
-            )(response)
-          )
+              addRequestIdToHeaders(response.headers, requestId),
+            )(response),
+          ),
         );
-      })
+      }),
     ),
 
     // Get by id
@@ -113,7 +113,7 @@ export const applyArticlesRoutes = <E, R>(
           yield* Effect.logWarning(
             `articles.get warnings pageId=${entity.pageId} source=${
               entity.source
-            }: ${entity.warnings.join(", ")}`
+            }: ${entity.warnings.join(", ")}`,
           );
         }
 
@@ -121,11 +121,11 @@ export const applyArticlesRoutes = <E, R>(
         return yield* HttpServerResponse.json(entity).pipe(
           Effect.map((response) =>
             HttpServerResponse.setHeaders(
-              addRequestIdToHeaders(response.headers, requestId)
-            )(response)
-          )
+              addRequestIdToHeaders(response.headers, requestId),
+            )(response),
+          ),
         );
-      })
+      }),
     ),
 
     // Create
@@ -151,7 +151,7 @@ export const applyArticlesRoutes = <E, R>(
           status: 201,
           headers: addRequestIdToHeaders({}, requestId),
         });
-      })
+      }),
     ),
 
     // Update
@@ -178,11 +178,11 @@ export const applyArticlesRoutes = <E, R>(
         return yield* HttpServerResponse.json(entity).pipe(
           Effect.map((response) =>
             HttpServerResponse.setHeaders(
-              addRequestIdToHeaders(response.headers, requestId)
-            )(response)
-          )
+              addRequestIdToHeaders(response.headers, requestId),
+            )(response),
+          ),
         );
-      })
+      }),
     ),
 
     // Delete (archive)
@@ -205,14 +205,14 @@ export const applyArticlesRoutes = <E, R>(
           status: 204,
           headers: addRequestIdToHeaders({}, requestId),
         });
-      })
-    )
+      }),
+    ),
   );
 
 export default applyArticlesRoutes;
 
 function omitUndefined<T extends Record<string, unknown>>(
-  obj: T
+  obj: T,
 ): { [K in keyof T]?: Exclude<T[K], undefined> } {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {

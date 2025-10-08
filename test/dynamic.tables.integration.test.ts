@@ -19,7 +19,7 @@ const TestLayer = Layer.mergeAll(
   AppConfigProviderLive,
   NodeContext.layer,
   RequestIdService.Live,
-  NotionService.Default
+  NotionService.Default,
 );
 
 const { handler: testApp } = HttpApp.toWebHandlerLayer(app, TestLayer);
@@ -61,12 +61,12 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
             title: `Test DB ${Date.now()}`,
             spec: testDbSpec,
           }),
-        })
+        }),
       );
 
       if (response.status !== 200) {
         throw new Error(
-          `Failed to create test database: ${await response.text()}`
+          `Failed to create test database: ${await response.text()}`,
         );
       }
 
@@ -91,12 +91,12 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
               Priority: { status: { name: "Medium" } },
             },
           }),
-        })
+        }),
       );
 
       if (pageResponse.status !== 200) {
         throw new Error(
-          `Failed to create test page: ${await pageResponse.text()}`
+          `Failed to create test page: ${await pageResponse.text()}`,
         );
       }
 
@@ -121,7 +121,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
               title: `Test DB ${Date.now()}`,
               spec: testDbSpec,
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(200);
@@ -133,7 +133,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
 
         // Verify schema properties match our spec
         const propertyNames = body.properties.map(
-          (p: { name: string }) => p.name
+          (p: { name: string }) => p.name,
         );
         expect(propertyNames).toContain("Name");
         expect(propertyNames).toContain("Status");
@@ -159,7 +159,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
                 InvalidField: { type: "invalid_type" },
               },
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(400);
@@ -172,8 +172,8 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
       it("should build runtime Effect schemas that match codegen", async () => {
         const response = await testApp(
           new Request(
-            `http://localhost/api/db/get-schema?databaseId=${testDatabaseId}`
-          )
+            `http://localhost/api/db/get-schema?databaseId=${testDatabaseId}`,
+          ),
         );
 
         expect(response.status).toBe(200);
@@ -184,13 +184,13 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
         // Verify the schema includes expected property types
         const properties = body.properties;
         const nameProp = properties.find(
-          (p: { name: string }) => p.name === "Name"
+          (p: { name: string }) => p.name === "Name",
         );
         const statusProp = properties.find(
-          (p: { name: string }) => p.name === "Status"
+          (p: { name: string }) => p.name === "Status",
         );
         const tagsProp = properties.find(
-          (p: { name: string }) => p.name === "Tags"
+          (p: { name: string }) => p.name === "Tags",
         );
 
         expect(nameProp).toBeDefined();
@@ -222,7 +222,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
               ],
               pageSize: 10,
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(200);
@@ -236,7 +236,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
 
       it("should retrieve a specific page", async () => {
         const response = await testApp(
-          new Request(`http://localhost/api/db/get?pageId=${testPageId}`)
+          new Request(`http://localhost/api/db/get?pageId=${testPageId}`),
         );
 
         expect(response.status).toBe(200);
@@ -269,7 +269,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
                 Priority: { status: { name: "High" } },
               },
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(200);
@@ -297,7 +297,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
                 },
               },
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(200);
@@ -306,7 +306,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
 
         // Verify the update worked by retrieving the page
         const getResponse = await testApp(
-          new Request(`http://localhost/api/db/get?pageId=${testPageId}`)
+          new Request(`http://localhost/api/db/get?pageId=${testPageId}`),
         );
         expect(getResponse.status).toBe(200);
         const getBody = await getResponse.json();
@@ -326,7 +326,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
             body: JSON.stringify({
               databaseId: nonexistentDb,
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(404);
@@ -337,7 +337,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
       it("should handle non-existent page retrieval", async () => {
         const nonexistentPage = "00000000-0000-0000-0000-000000000000";
         const response = await testApp(
-          new Request(`http://localhost/api/db/get?pageId=${nonexistentPage}`)
+          new Request(`http://localhost/api/db/get?pageId=${nonexistentPage}`),
         );
 
         expect(response.status).toBe(404);
@@ -356,7 +356,7 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
                 InvalidField: { invalid_type: "value" },
               },
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(400);
@@ -372,8 +372,8 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
 
         const response = await testApp(
           new Request(
-            `http://localhost/api/db/get-schema?databaseId=${testDatabaseId}`
-          )
+            `http://localhost/api/db/get-schema?databaseId=${testDatabaseId}`,
+          ),
         );
 
         expect(response.status).toBe(200);
@@ -381,30 +381,30 @@ describe.skipIf(!NOTION_API_KEY || !NOTION_TEST_PARENT_PAGE_ID)(
 
         // Verify select options are preserved
         const statusProp = body.properties.find(
-          (p: { name: string }) => p.name === "Status"
+          (p: { name: string }) => p.name === "Status",
         );
         expect(statusProp.config.select.options).toHaveLength(3);
         expect(
-          statusProp.config.select.options.map((o: { name: string }) => o.name)
+          statusProp.config.select.options.map((o: { name: string }) => o.name),
         ).toEqual(["Draft", "Published", "Archived"]);
 
         // Verify multi-select options are preserved
         const tagsProp = body.properties.find(
-          (p: { name: string }) => p.name === "Tags"
+          (p: { name: string }) => p.name === "Tags",
         );
         expect(tagsProp.config.multi_select.options).toHaveLength(4);
         expect(
           tagsProp.config.multi_select.options.map(
-            (o: { name: string }) => o.name
-          )
+            (o: { name: string }) => o.name,
+          ),
         ).toEqual(["tech", "news", "tutorial", "announcement"]);
 
         // Verify formula type is preserved
         const scoreProp = body.properties.find(
-          (p: { name: string }) => p.name === "Score"
+          (p: { name: string }) => p.name === "Score",
         );
         expect(scoreProp.config.formula.type).toBe("number");
       });
     });
-  }
+  },
 );

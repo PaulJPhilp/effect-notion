@@ -15,7 +15,7 @@ import { NotionService } from "../src/NotionService.js";
  * Publish an article by updating its status and published date
  */
 export const publishArticle = (
-  pageId: string
+  pageId: string,
 ): Effect.Effect<
   { success: boolean; properties: unknown },
   NotionError,
@@ -47,7 +47,7 @@ export const publishArticle = (
     yield* Effect.logInfo(`Publishing article ${pageId}`);
     const updatedMetadata = yield* notionService.updateArticleProperties(
       pageId,
-      publishingProperties
+      publishingProperties,
     );
 
     yield* Effect.logInfo(`Article ${pageId} published successfully`);
@@ -62,7 +62,7 @@ export const publishArticle = (
  * Unpublish an article by updating its status to Draft
  */
 export const unpublishArticle = (
-  pageId: string
+  pageId: string,
 ): Effect.Effect<
   { success: boolean; properties: unknown },
   NotionError,
@@ -83,7 +83,7 @@ export const unpublishArticle = (
 
     const result = yield* notionService.updateArticleProperties(
       pageId,
-      properties
+      properties,
     );
 
     yield* Effect.logInfo(`Article ${pageId} unpublished successfully`);
@@ -99,7 +99,7 @@ export const unpublishArticle = (
  */
 export const scheduleArticle = (
   pageId: string,
-  publishDate: Date
+  publishDate: Date,
 ): Effect.Effect<
   { success: boolean; scheduledFor: string },
   NotionError,
@@ -109,7 +109,7 @@ export const scheduleArticle = (
     const notionService = yield* NotionService;
 
     yield* Effect.logInfo(
-      `Scheduling article ${pageId} for ${publishDate.toISOString()}`
+      `Scheduling article ${pageId} for ${publishDate.toISOString()}`,
     );
 
     const properties = {
@@ -145,7 +145,7 @@ export const updateArticleMetadata = (
     tags?: string[];
     featured?: boolean;
     publishedDate?: Date;
-  }
+  },
 ): Effect.Effect<{ success: boolean }, NotionError, NotionService> =>
   Effect.gen(function* () {
     const notionService = yield* NotionService;
@@ -194,7 +194,7 @@ export const updateArticleMetadata = (
  * Batch publish multiple articles
  */
 export const batchPublishArticles = (
-  pageIds: string[]
+  pageIds: string[],
 ): Effect.Effect<{ published: number; failed: number }, never, NotionService> =>
   Effect.gen(function* () {
     yield* Effect.logInfo(`Batch publishing ${pageIds.length} articles`);
@@ -207,20 +207,20 @@ export const batchPublishArticles = (
           Effect.catchAll((error) =>
             Effect.gen(function* () {
               yield* Effect.logWarning(
-                `Failed to publish article ${pageId}: ${error._tag}`
+                `Failed to publish article ${pageId}: ${error._tag}`,
               );
               return { success: false, pageId };
-            })
-          )
+            }),
+          ),
         ),
-      { concurrency: 5 } // Respect Notion API rate limits
+      { concurrency: 5 }, // Respect Notion API rate limits
     );
 
     const published = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
 
     yield* Effect.logInfo(
-      `Batch publish complete: ${published} published, ${failed} failed`
+      `Batch publish complete: ${published} published, ${failed} failed`,
     );
 
     return { published, failed };
@@ -230,7 +230,7 @@ export const batchPublishArticles = (
  * Example: Publishing workflow with validation
  */
 export const publishWithValidation = (
-  pageId: string
+  pageId: string,
 ): Effect.Effect<
   { success: boolean; message: string },
   NotionError,
@@ -250,7 +250,7 @@ export const publishWithValidation = (
 
     if (!hasTitle) {
       yield* Effect.logWarning(
-        `Article ${pageId} cannot be published: missing title`
+        `Article ${pageId} cannot be published: missing title`,
       );
       return {
         success: false,
@@ -260,7 +260,7 @@ export const publishWithValidation = (
 
     if (!hasContent) {
       yield* Effect.logWarning(
-        `Article ${pageId} cannot be published: missing content`
+        `Article ${pageId} cannot be published: missing content`,
       );
       return {
         success: false,

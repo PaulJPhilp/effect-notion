@@ -16,7 +16,7 @@ export type StrongConfig<K extends PropertyKey> = {
 // Keeps things type-safe without relying on Schema internal annotations.
 export function defineDomainWithNotion<
   T extends Record<string, unknown>,
-  N extends { [K in keyof T]: string }
+  N extends { [K in keyof T]: string },
 >(shape: T, notionNames: N) {
   // We only need the mapping for config generation; avoid heavy typing.
   return { notionNames } as const;
@@ -25,7 +25,7 @@ export function defineDomainWithNotion<
 // Create a StrongConfig from the annotations and a codec map
 export function makeConfigFromAnnotations<
   N extends Record<string, string>,
-  C extends { [K in keyof N]: FieldCodec<unknown, unknown> }
+  C extends { [K in keyof N]: FieldCodec<unknown, unknown> },
 >(ann: { notionNames: N }, codecs: C): StrongConfig<keyof N> {
   const cfg = Object.fromEntries(
     Object.entries(ann.notionNames).map(([k, notionName]) => {
@@ -34,7 +34,7 @@ export function makeConfigFromAnnotations<
         throw new Error(`Missing codec for key: ${k}`);
       }
       return [k, { notionName, codec }];
-    })
+    }),
   ) as StrongConfig<keyof N>;
   return cfg;
 }

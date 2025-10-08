@@ -40,7 +40,7 @@ export type NotionProperty = {
 } & Record<string, unknown>;
 
 export const hasTitleArray = (
-  prop: unknown
+  prop: unknown,
 ): prop is { title: ReadonlyArray<{ plain_text: string }> } =>
   !!prop &&
   typeof prop === "object" &&
@@ -48,7 +48,7 @@ export const hasTitleArray = (
   Array.isArray((prop as Record<string, unknown>).title);
 
 export const hasRichTextArray = (
-  prop: unknown
+  prop: unknown,
 ): prop is { rich_text: ReadonlyArray<{ plain_text: string }> } =>
   !!prop &&
   typeof prop === "object" &&
@@ -57,7 +57,7 @@ export const hasRichTextArray = (
 
 export const getRichText = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): string | null => {
   const prop = page.properties[propertyName];
   if (!prop || typeof prop !== "object") {
@@ -77,7 +77,7 @@ export const getRichText = (
 
 export const getRichTextOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<string> => {
   const v = getRichText(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -97,7 +97,7 @@ export const getSelect = (page: Page, propertyName: string): string | null => {
 
 export const getSelectOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<string> => {
   const v = getSelect(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -105,7 +105,7 @@ export const getSelectOpt = (
 
 export const getDate = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): { start: string; end: string | null; timezone?: string } | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") {
@@ -127,7 +127,7 @@ export const getDate = (
 
 export const getDateOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<{ start: string; end: string | null; timezone?: string }> => {
   const v = getDate(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -144,7 +144,7 @@ export const getNumber = (page: Page, propertyName: string): number | null => {
 
 export const getNumberOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<number> => {
   const v = getNumber(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -152,7 +152,7 @@ export const getNumberOpt = (
 
 export const getMultiSelect = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") {
@@ -170,7 +170,7 @@ export const getMultiSelect = (
 
 export const getMultiSelectOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<ReadonlyArray<string>> => {
   const v = getMultiSelect(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -178,7 +178,7 @@ export const getMultiSelectOpt = (
 
 export const getCheckbox = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): boolean | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") {
@@ -190,7 +190,7 @@ export const getCheckbox = (
 
 export const getCheckboxOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<boolean> => {
   const v = getCheckbox(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -207,7 +207,7 @@ export const getUrl = (page: Page, propertyName: string): string | null => {
 
 export const getUrlOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<string> => {
   const v = getUrl(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -227,7 +227,7 @@ export const getStatus = (page: Page, propertyName: string): string | null => {
 
 export const getStatusOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<string> => {
   const v = getStatus(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -235,7 +235,7 @@ export const getStatusOpt = (
 
 export const getPeopleIds = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") {
@@ -253,7 +253,7 @@ export const getPeopleIds = (
 
 export const getPeopleIdsOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<ReadonlyArray<string>> => {
   const v = getPeopleIds(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -261,7 +261,7 @@ export const getPeopleIdsOpt = (
 
 export const getRelationIds = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") {
@@ -279,7 +279,7 @@ export const getRelationIds = (
 
 export const getRelationIdsOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<ReadonlyArray<string>> => {
   const v = getRelationIds(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -287,7 +287,7 @@ export const getRelationIdsOpt = (
 
 export const getFileUrls = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): ReadonlyArray<string> | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") {
@@ -327,7 +327,7 @@ export const getFileUrls = (
 
 export const getFileUrlsOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<ReadonlyArray<string>> => {
   const v = getFileUrls(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -341,7 +341,7 @@ export type FormulaValue =
 
 export const getFormula = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): FormulaValue | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") {
@@ -382,7 +382,7 @@ export const getFormula = (
 
 export const getFormulaOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<FormulaValue> => {
   const v = getFormula(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -395,7 +395,7 @@ export type RollupValue =
 
 export const getRollup = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): RollupValue | null => {
   const p = page?.properties?.[propertyName];
   if (!p || typeof p !== "object") {
@@ -431,7 +431,7 @@ export const getRollup = (
 
 export const getRollupOpt = (
   page: Page,
-  propertyName: string
+  propertyName: string,
 ): Option.Option<RollupValue> => {
   const v = getRollup(page, propertyName);
   return v == null ? Option.none() : Option.some(v);
@@ -460,7 +460,7 @@ export type PropertyValue =
 export const getPropertyFromPage = (
   page: Page,
   schema: NormalizedDatabaseSchema,
-  propertyName: string
+  propertyName: string,
 ): PropertyValue => {
   const propSchema = schema.properties.find((p) => p.name === propertyName);
   if (!propSchema) {
@@ -521,7 +521,7 @@ export const getPropertyFromPage = (
 export const getTitleFromPage = (
   page: Page,
   schema: NormalizedDatabaseSchema,
-  overrideTitleName?: string
+  overrideTitleName?: string,
 ): string => {
   const name = schema.titlePropertyName ?? overrideTitleName;
   if (!name) {

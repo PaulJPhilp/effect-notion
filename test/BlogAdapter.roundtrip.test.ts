@@ -27,7 +27,7 @@ describe("blog.adapter round-trip", () => {
         "Tags",
         "Status",
         "Published Date",
-      ].sort()
+      ].sort(),
     );
 
     // Spot check shapes
@@ -35,11 +35,11 @@ describe("blog.adapter round-trip", () => {
     expect(props.Description.rich_text[0].text.content).toBe("Desc");
     expect(props["Content Type"].select?.name).toBe("Article");
     expect(
-      props.Tags.multi_select.map((o: { name: string }) => o.name)
+      props.Tags.multi_select.map((o: { name: string }) => o.name),
     ).toEqual(["Effect", "TS"]);
     expect(props.Status.select?.name).toBe("Published");
     expect(props["Published Date"].date?.start).toBe(
-      "2024-01-02T03:04:05.000Z"
+      "2024-01-02T03:04:05.000Z",
     );
   });
 
@@ -99,7 +99,7 @@ describe("blog.adapter round-trip", () => {
     expect(Array.isArray(entity.warnings)).toBe(true);
     expect((entity.warnings ?? []).length).toBeGreaterThan(0);
     expect(
-      (entity.warnings ?? []).some((w) => w.includes("Content Type"))
+      (entity.warnings ?? []).some((w) => w.includes("Content Type")),
     ).toBe(true);
   });
 

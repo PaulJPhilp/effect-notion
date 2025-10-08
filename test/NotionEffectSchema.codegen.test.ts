@@ -1,10 +1,10 @@
-import * as S from "effect/Schema";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import * as S from "effect/Schema";
 import { describe, expect, it } from "vitest";
 import {
-  genDomainSchemaModule,
   type NotionDb,
+  genDomainSchemaModule,
 } from "../scripts/generate-notion-schema";
 
 // Keep lines short; wrap frequently to <= 80 chars.
@@ -49,7 +49,7 @@ describe("Domain-level Effect Schema codegen (POC)", () => {
     expect(code).toContain("export const GeneratedDomain = S.Struct({");
     expect(code).toContain("'Title': S.String");
     expect(code).toContain(
-      "'Status': S.Union(S.Literal('Draft', 'Published'), S.Undefined)"
+      "'Status': S.Union(S.Literal('Draft', 'Published'), S.Undefined)",
     );
     expect(code).toContain("'Tags': S.Array(S.Literal('tech', 'news'))");
     expect(code).toContain("'Views': S.Union(S.Number, S.Undefined)");
@@ -58,7 +58,7 @@ describe("Domain-level Effect Schema codegen (POC)", () => {
     expect(code).toContain("'Author': S.Array(S.String)");
     expect(code).toContain("'Related': S.Array(S.String)");
     expect(code).toContain(
-      "'PublishedAt': S.Union(S.DateFromSelf, S.Undefined)"
+      "'PublishedAt': S.Union(S.DateFromSelf, S.Undefined)",
     );
     expect(code).toContain("'Score': S.Union(S.Number, S.Undefined)");
   });

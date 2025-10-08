@@ -4,7 +4,7 @@ import type { NotionError } from "../NotionClient/errors.js";
 
 export interface NotionServiceApi {
   getDatabaseSchema: (
-    databaseId: string
+    databaseId: string,
   ) => Effect.Effect<NormalizedDatabaseSchema, NotionError>;
 
   listArticles: (
@@ -13,7 +13,7 @@ export interface NotionServiceApi {
     filter?: unknown,
     sorts?: unknown,
     pageSize?: number,
-    startCursor?: string
+    startCursor?: string,
   ) => Effect.Effect<
     {
       results: ReadonlyArray<{ id: string; title: string }>;
@@ -30,7 +30,7 @@ export interface NotionServiceApi {
     filter?: unknown,
     sorts?: unknown,
     pageSize?: number,
-    startCursor?: string
+    startCursor?: string,
   ) => Effect.Effect<
     {
       results: ReadonlyArray<{ id: string; title: string }>;
@@ -46,7 +46,7 @@ export interface NotionServiceApi {
     filter?: unknown,
     sorts?: unknown,
     pageSize?: number,
-    startCursor?: string
+    startCursor?: string,
   ) => Effect.Effect<
     {
       pages: ReadonlyArray<unknown>;
@@ -57,18 +57,18 @@ export interface NotionServiceApi {
   >;
 
   getArticleMetadata: (
-    pageId: string
+    pageId: string,
   ) => Effect.Effect<{ properties: unknown }, NotionError>;
 
   updateArticleProperties: (
     pageId: string,
-    properties: Record<string, unknown>
+    properties: Record<string, unknown>,
   ) => Effect.Effect<{ properties: unknown }, NotionError>;
 
   getArticleContent: (pageId: string) => Effect.Effect<string, NotionError>;
 
   updateArticleContent: (
     pageId: string,
-    content: string
+    content: string,
   ) => Effect.Effect<void, NotionError>;
 }

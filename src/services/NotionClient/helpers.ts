@@ -17,10 +17,10 @@ import {
   InternalServerError,
   InvalidApiKeyError,
   NotFoundError,
+  type NotionError,
   RateLimitedError,
   RequestTimeoutError,
   ServiceUnavailableError,
-  type NotionError,
 } from "./errors.js";
 
 // Helper functions to reduce complexity
@@ -66,7 +66,7 @@ function getRetryAfterHeader(headers: unknown): string | undefined {
 }
 
 function parseRetryAfterSeconds(
-  response: HttpClientResponse.HttpClientResponse
+  response: HttpClientResponse.HttpClientResponse,
 ): number | undefined {
   const retryAfter = getRetryAfterHeader(response.headers);
 
@@ -91,19 +91,19 @@ function parseRetryAfterSeconds(
 }
 
 const readBody = (
-  response: HttpClientResponse.HttpClientResponse
+  response: HttpClientResponse.HttpClientResponse,
 ): Effect.Effect<string, never> =>
   response.text.pipe(Effect.catchAll(() => Effect.succeed("")));
 
 const failWithBody = <E extends NotionError>(
   response: HttpClientResponse.HttpClientResponse,
-  create: (body: string) => E
+  create: (body: string) => E,
 ): Effect.Effect<never, E> =>
   readBody(response).pipe(Effect.flatMap((body) => Effect.fail(create(body))));
 
 function handleResponseStatus<T, I>(
   response: HttpClientResponse.HttpClientResponse,
-  schema: S.Schema<T, I, never>
+  schema: S.Schema<T, I, never>,
 ): Effect.Effect<T, NotionError> {
   const retryAfterSeconds = parseRetryAfterSeconds(response);
 
@@ -112,27 +112,27 @@ function handleResponseStatus<T, I>(
     case 422:
       return readBody(response).pipe(
         Effect.tap((body) =>
-          Effect.logWarning(`Notion BadRequest ${response.status}: ${body}`)
+          Effect.logWarning(`Notion BadRequest ${response.status}: ${body}`),
         ),
         Effect.flatMap((body) =>
           Effect.fail(
-            new BadRequestError({ cause: `${response.status}:${body}` })
-          )
-        )
+            new BadRequestError({ cause: `${response.status}:${body}` }),
+          ),
+        ),
       );
     case 401:
       return Effect.fail(new InvalidApiKeyError({ cause: undefined }));
     case 403:
       return failWithBody(
         response,
-        (body) => new ForbiddenError({ cause: body || undefined })
+        (body) => new ForbiddenError({ cause: body || undefined }),
       );
     case 404:
       return Effect.fail(new NotFoundError({ cause: undefined }));
     case 409:
       return failWithBody(
         response,
-        (body) => new ConflictError({ cause: body || undefined })
+        (body) => new ConflictError({ cause: body || undefined }),
       );
     case 429:
       return failWithBody(
@@ -141,12 +141,12 @@ function handleResponseStatus<T, I>(
           new RateLimitedError({
             ...(body.length > 0 ? { cause: body } : {}),
             ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-          })
+          }),
       );
     case 503:
       return failWithBody(
         response,
-        (body) => new ServiceUnavailableError({ cause: body || undefined })
+        (body) => new ServiceUnavailableError({ cause: body || undefined }),
       );
     default:
       if (response.status >= 500) {
@@ -155,7 +155,7 @@ function handleResponseStatus<T, I>(
           (body) =>
             new InternalServerError({
               cause: `${response.status}:${body}`,
-            })
+            }),
         );
       }
       if (response.status >= 400) {
@@ -164,18 +164,18 @@ function handleResponseStatus<T, I>(
           (body) =>
             new InternalServerError({
               cause: `${response.status}:${body}`,
-            })
+            }),
         );
       }
       return HttpClientResponse.schemaBodyJson(schema)(response).pipe(
-        Effect.mapError((cause) => new InternalServerError({ cause }))
+        Effect.mapError((cause) => new InternalServerError({ cause })),
       );
   }
 }
 
 // Helper function to handle unit response status codes
 function handleUnitResponseStatus(
-  response: HttpClientResponse.HttpClientResponse
+  response: HttpClientResponse.HttpClientResponse,
 ): Effect.Effect<void, NotionError> {
   const retryAfterSeconds = parseRetryAfterSeconds(response);
 
@@ -184,25 +184,25 @@ function handleUnitResponseStatus(
     case 422:
       return readBody(response).pipe(
         Effect.tap((body) =>
-          Effect.logWarning(`Notion BadRequest ${response.status}: ${body}`)
+          Effect.logWarning(`Notion BadRequest ${response.status}: ${body}`),
         ),
         Effect.flatMap((body) =>
-          Effect.fail(new BadRequestError({ cause: body || undefined }))
-        )
+          Effect.fail(new BadRequestError({ cause: body || undefined })),
+        ),
       );
     case 401:
       return Effect.fail(new InvalidApiKeyError({ cause: undefined }));
     case 403:
       return failWithBody(
         response,
-        (body) => new ForbiddenError({ cause: body || undefined })
+        (body) => new ForbiddenError({ cause: body || undefined }),
       );
     case 404:
       return Effect.fail(new NotFoundError({ cause: undefined }));
     case 409:
       return failWithBody(
         response,
-        (body) => new ConflictError({ cause: body || undefined })
+        (body) => new ConflictError({ cause: body || undefined }),
       );
     case 429:
       return failWithBody(
@@ -211,18 +211,18 @@ function handleUnitResponseStatus(
           new RateLimitedError({
             ...(body.length > 0 ? { cause: body } : {}),
             ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-          })
+          }),
       );
     case 503:
       return failWithBody(
         response,
-        (body) => new ServiceUnavailableError({ cause: body || undefined })
+        (body) => new ServiceUnavailableError({ cause: body || undefined }),
       );
     default:
       if (response.status >= 400) {
         return failWithBody(
           response,
-          (body) => new InternalServerError({ cause: body || undefined })
+          (body) => new InternalServerError({ cause: body || undefined }),
         );
       }
       return Effect.succeed(undefined);
@@ -240,7 +240,7 @@ const notionSuccessCounter = Metric.counter("notion_api_success_total");
 const notionErrorCounter = Metric.counter("notion_api_errors_total");
 const notionDurationHistogram = Metric.histogram(
   "notion_api_duration_ms",
-  MetricBoundaries.exponential({ start: 10, factor: 2, count: 10 })
+  MetricBoundaries.exponential({ start: 10, factor: 2, count: 10 }),
 );
 
 /**
@@ -255,7 +255,7 @@ const notionDurationHistogram = Metric.histogram(
 const notionRetrySchedule = Schedule.exponential("1 second").pipe(
   Schedule.either(Schedule.spaced("500 millis")),
   Schedule.compose(Schedule.recurs(2)), // 2 retries = 3 total attempts
-  Schedule.jittered
+  Schedule.jittered,
 );
 
 /**
@@ -308,7 +308,7 @@ export const createPerformRequest =
   <A, I>(
     request: HttpClientRequest.HttpClientRequest,
     schema: S.Schema<A, I, never>,
-    timeoutMs = 10_000
+    timeoutMs = 10_000,
   ): Effect.Effect<A, NotionError> =>
     Effect.gen(function* () {
       const startTime = yield* Clock.currentTimeMillis;
@@ -325,7 +325,7 @@ export const createPerformRequest =
           }
           return new InternalServerError({ cause });
         }),
-        Effect.flatMap((response) => handleResponseStatus(response, schema))
+        Effect.flatMap((response) => handleResponseStatus(response, schema)),
       );
 
       // Apply retry policy for retryable errors
@@ -338,9 +338,9 @@ export const createPerformRequest =
           Effect.gen(function* () {
             yield* Metric.increment(notionErrorCounter);
             yield* Effect.logWarning(
-              `Notion API request failed: ${error._tag}`
+              `Notion API request failed: ${error._tag}`,
             );
-          })
+          }),
         ),
         Effect.tap(() =>
           Effect.gen(function* () {
@@ -348,8 +348,8 @@ export const createPerformRequest =
             const duration = endTime - startTime;
             yield* Metric.increment(notionSuccessCounter);
             yield* Metric.update(notionDurationHistogram, duration);
-          })
-        )
+          }),
+        ),
       );
 
       return result;
@@ -359,7 +359,7 @@ export const createPerformRequestUnit =
   (client: HttpClient.HttpClient) =>
   (
     request: HttpClientRequest.HttpClientRequest,
-    timeoutMs = 10_000
+    timeoutMs = 10_000,
   ): Effect.Effect<void, NotionError> =>
     Effect.gen(function* () {
       const startTime = yield* Clock.currentTimeMillis;
@@ -376,7 +376,7 @@ export const createPerformRequestUnit =
           }
           return new InternalServerError({ cause });
         }),
-        Effect.flatMap((response) => handleUnitResponseStatus(response))
+        Effect.flatMap((response) => handleUnitResponseStatus(response)),
       );
 
       // Apply retry policy for retryable errors
@@ -389,9 +389,9 @@ export const createPerformRequestUnit =
           Effect.gen(function* () {
             yield* Metric.increment(notionErrorCounter);
             yield* Effect.logWarning(
-              `Notion API request failed: ${error._tag}`
+              `Notion API request failed: ${error._tag}`,
             );
-          })
+          }),
         ),
         Effect.tap(() =>
           Effect.gen(function* () {
@@ -399,15 +399,15 @@ export const createPerformRequestUnit =
             const duration = endTime - startTime;
             yield* Metric.increment(notionSuccessCounter);
             yield* Metric.update(notionDurationHistogram, duration);
-          })
-        )
+          }),
+        ),
       );
     });
 
 // Test-only helper mirroring status mapping
 export const __test__mapStatusToError = (
   status: number,
-  body: string
+  body: string,
 ): NotionError | undefined => {
   if (status === 401) {
     return new InvalidApiKeyError({ cause: undefined });
