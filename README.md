@@ -219,6 +219,8 @@ Useful scripts from `package.json`:
 - `bun test` — run tests (Vitest via Bun)
 - `bun run build` — type-check via `tsc`
 - `bun run codegen:notion` — run schema codegen (see below)
+- `bun run health-check [URL]` — test live server health (see 
+  [docs/HEALTH_CHECK.md](docs/HEALTH_CHECK.md))
 
 Diagnostics helper:
 
@@ -552,8 +554,32 @@ The project is configured for Vercel with Node.js runtime (`vercel.json`):
 1. Push to a Git repo and import into Vercel
 2. Set environment variables (see Configuration section above)
 3. Deploy with `vercel --prod`
+4. Verify deployment: `bun run health-check https://your-app.vercel.app`
 
-**Note:** While local development uses Bun for speed, Vercel deployment uses Node.js runtime for compatibility.
+**Note:** While local development uses Bun for speed, Vercel deployment 
+uses Node.js runtime for compatibility.
+
+**Post-Deployment Verification:**
+
+After deploying, run the health check script to verify all systems are 
+operational:
+
+```bash
+# Test your production deployment
+bun run health-check https://your-app.vercel.app
+
+# Test staging environment
+bun run health-check https://your-app-staging.vercel.app
+```
+
+The health check validates:
+- Health endpoint responds correctly
+- CORS configuration is working
+- 404 handling for invalid routes
+- Request ID headers are present
+
+See [docs/HEALTH_CHECK.md](docs/HEALTH_CHECK.md) for detailed usage and 
+CI/CD integration.
 
 ### Local Development
 
@@ -583,11 +609,18 @@ See `docs/DEPLOYMENT_READY.md` for detailed production deployment checklist and 
 
 ### Quick Links
 
-- **[Development Guide](./docs/DEVELOPMENT.md)** - Architecture, patterns, and development workflows
-- **[Production Deployment](./docs/PRODUCTION.md)** - Deployment, monitoring, and security best practices
-- **[Source Configuration](./docs/SOURCES_CONFIG.md)** - JSON-based database configuration reference
-- **[Migration Guide](./docs/MIGRATION_CONFIG.md)** - Upgrade from hardcoded to config-based sources
-- **[Architecture Overview](./docs/Architecture.md)** - System design and component relationships
+- **[Development Guide](./docs/DEVELOPMENT.md)** - Architecture, 
+  patterns, and development workflows
+- **[Production Deployment](./docs/PRODUCTION.md)** - Deployment, 
+  monitoring, and security best practices
+- **[Health Check Script](./docs/HEALTH_CHECK.md)** - Testing live 
+  server deployments
+- **[Source Configuration](./docs/SOURCES_CONFIG.md)** - JSON-based 
+  database configuration reference
+- **[Migration Guide](./docs/MIGRATION_CONFIG.md)** - Upgrade from 
+  hardcoded to config-based sources
+- **[Architecture Overview](./docs/Architecture.md)** - System design 
+  and component relationships
 - **[Schema Adapters](./docs/SchemaAdapter.md)** - Pattern for mapping Notion to domain entities
 - **[Metrics & Resilience](./docs/METRICS_AND_RESILIENCE.md)** - Observability and error handling
 

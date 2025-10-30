@@ -107,15 +107,25 @@ export const loadSourcesConfig = (
     // Resolve to absolute path
     const absolutePath = resolve(configPath);
 
-    // Read config file
+    // Read config file with defensive error handling
+    // In production/serverless, file operations can be unreliable
     let rawConfig: unknown;
     try {
+      // Add a basic check before attempting to read
       const fileContent = readFileSync(absolutePath, "utf-8");
+      if (!fileContent || fileContent.trim().length === 0) {
+        return yield* Effect.fail(
+          new Error(`Config file at ${absolutePath} is empty`),
+        );
+      }
       rawConfig = JSON.parse(fileContent);
     } catch (err) {
+      // Provide more detailed error information
+      const errorMsg =
+        err instanceof Error ? err.message : String(err);
       return yield* Effect.fail(
         new Error(
-          `Failed to read config file at ${absolutePath}: ${String(err)}`,
+          `Failed to read config file at ${absolutePath}: ${errorMsg}`,
         ),
       );
     }

@@ -1,6 +1,6 @@
+import dotenv from "dotenv";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import dotenv from "dotenv";
 // src/config.ts
 import {
   Config,
@@ -34,8 +34,11 @@ const loadEnvFiles = (env: Env): void => {
 };
 
 // Determine env early and load files
+// Skip .env file loading in production (Vercel provides env vars directly)
 const NODE_ENV: Env = (process.env.NODE_ENV as Env) ?? "development";
-loadEnvFiles(NODE_ENV);
+if (NODE_ENV !== "production") {
+  loadEnvFiles(NODE_ENV);
+}
 
 export const AppConfig = Config.all({
   env: Config.string("NODE_ENV").pipe(
@@ -44,7 +47,7 @@ export const AppConfig = Config.all({
       s === "test" || s === "production" ? s : ("development" as Env),
     ),
   ),
-  port: Config.number("PORT").pipe(Config.withDefault(3000)),
+  port: Config.number("PORT").pipe(Config.withDefault(4000)),
   corsOrigin: Config.string("CORS_ORIGIN").pipe(Config.withDefault("*")),
   corsAllowedMethods: Config.string("CORS_ALLOWED_METHODS").pipe(
     Config.withDefault("POST,GET,OPTIONS"),
@@ -80,7 +83,7 @@ export const ValidatedAppConfig = Effect.gen(function* () {
       "ConfigValidationError",
     )<{
       readonly reason: string;
-    }> {}
+    }> { }
 
     return yield* Effect.fail(
       new ConfigValidationError({

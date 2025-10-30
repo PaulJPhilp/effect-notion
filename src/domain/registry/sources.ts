@@ -112,22 +112,52 @@ function logLoadedSources(sources: ReadonlyArray<SourceConfig>) {
 }
 
 const loadFromConfig = (): ReadonlyArray<SourceConfig> => {
+  // In production serverless, skip file loading entirely to avoid blocking
+  // Sources will be loaded lazily on first request instead
+  if (process.env.NODE_ENV === "production" && process.env.VERCEL === "1") {
+    console.log("[Sources] Production/Vercel: skipping module-level config load");
+    return [];
+  }
+
   const configPath =
     process.env.NOTION_SOURCES_CONFIG || "./sources.config.json";
 
-  // Load and validate config file
+  console.log(`[Sources] Loading config from: ${configPath}`);
+  console.log(`[Sources] NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`[Sources] CWD: ${process.cwd()}`);
+
+  // Load and validate config file with timeout to prevent hanging
   const configEffect = loadSourcesConfig(configPath).pipe(
-    Effect.tap((config) => validateConfig(config)),
+    Effect.tap((config) => {
+      console.log(
+        `[Sources] Config loaded successfully, ${config.sources.length} source(s) found`
+      );
+      return validateConfig(config);
+    }),
+    Effect.timeout("5 seconds"), // Add 5-second timeout
     Effect.catchAll((error) => {
+      const errorMsg =
+        error && typeof error === "object" && "message" in error
+          ? (error as Error).message
+          : String(error);
       console.warn(
-        `[Sources] Failed to load config from ${configPath}: ${error.message}`,
+        `[Sources] Failed to load config from ${configPath}: ${errorMsg}`,
       );
       console.warn("[Sources] Falling back to empty source list");
       return Effect.succeed({ version: "1.0", sources: [] });
     }),
   );
 
-  const result = Effect.runSync(configEffect);
+  let result;
+  try {
+    console.log("[Sources] Starting Effect.runSync...");
+    result = Effect.runSync(configEffect);
+    console.log("[Sources] Effect.runSync completed");
+  } catch (err) {
+    console.error("[Sources] Effect.runSync threw error:", err);
+    // Return empty config on any error
+    result = { version: "1.0" as const, sources: [] };
+  }
 
   const sources: SourceConfig[] = result.sources
     .map((item) =>
@@ -144,18 +174,25 @@ const loadFromConfig = (): ReadonlyArray<SourceConfig> => {
 };
 
 /**
- * Cached source registry loaded at module initialization.
+ * Cached source registry loaded lazily on first access.
  * Prevents repeated configuration parsing on every request.
  *
  * Sources are loaded from JSON config file (sources.config.json) with
  * environment variable substitution for database IDs.
  */
-const SOURCES_CACHE: ReadonlyArray<SourceConfig> = loadFromConfig();
+let SOURCES_CACHE: ReadonlyArray<SourceConfig> | null = null;
+
+function getSourcesCache(): ReadonlyArray<SourceConfig> {
+  if (SOURCES_CACHE === null) {
+    SOURCES_CACHE = loadFromConfig();
+  }
+  return SOURCES_CACHE;
+}
 
 /**
  * Source registry for managing configured Notion database sources.
  *
- * Sources are loaded from JSON configuration at module initialization
+ * Sources are loaded from JSON configuration lazily on first access
  * and cached for performance. Use Effect-based methods for error handling.
  *
  * Configuration is loaded from:
@@ -166,13 +203,13 @@ export const Sources = {
   /**
    * Returns all configured sources.
    */
-  all: (): ReadonlyArray<SourceConfig> => SOURCES_CACHE,
+  all: (): ReadonlyArray<SourceConfig> => getSourcesCache(),
 
   /**
    * Returns sources filtered by kind.
    */
   ofKind(kind: Kind): ReadonlyArray<SourceConfig> {
-    return SOURCES_CACHE.filter((s) => s.kind === kind);
+    return getSourcesCache().filter((s) => s.kind === kind);
   },
 
   /**
@@ -181,7 +218,9 @@ export const Sources = {
    * @deprecated Use `resolveEffect` for proper Effect error handling
    */
   resolve(kind: Kind, alias: string): SourceConfig {
-    const s = SOURCES_CACHE.find((s) => s.kind === kind && s.alias === alias);
+    const s = getSourcesCache().find(
+      (s) => s.kind === kind && s.alias === alias
+    );
     if (!s) {
       throw new Error(`Unknown source: ${kind}/${alias}`);
     }
@@ -191,13 +230,16 @@ export const Sources = {
   /**
    * Resolves a source by kind and alias using Effect error channel.
    *
-   * @returns Effect that succeeds with SourceConfig or fails with SourceNotFoundError
+   * @returns Effect that succeeds with SourceConfig or fails with 
+   * SourceNotFoundError
    */
   resolveEffect(
     kind: Kind,
     alias: string,
   ): Effect.Effect<SourceConfig, SourceNotFoundError> {
-    const s = SOURCES_CACHE.find((s) => s.kind === kind && s.alias === alias);
+    const s = getSourcesCache().find(
+      (s) => s.kind === kind && s.alias === alias
+    );
     if (!s) {
       return Effect.fail(new SourceNotFoundError({ kind, alias }));
     }

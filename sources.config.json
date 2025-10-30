@@ -12,6 +12,17 @@
         "delete": true
       },
       "description": "Public-facing blog posts"
+    },
+    {
+      "alias": "ideas",
+      "kind": "articles",
+      "databaseId": "${NOTION_DB_IDEAS}",
+      "adapter": "blog",
+      "capabilities": {
+        "update": true,
+        "delete": true
+      },
+      "description": "Ideas database for article development"
     }
   ],
   "defaults": {

@@ -78,7 +78,10 @@
   },
   "overrides": [
     {
-      "include": ["**/*.ts", "**/*.tsx"],
+      "include": [
+        "**/*.ts",
+        "**/*.tsx"
+      ],
       "linter": {
         "rules": {
           "recommended": true,
@@ -99,13 +102,25 @@
       }
     },
     {
-      "include": ["scripts/**", "**/*.config.{ts,js}", "vitest.config.{ts,js}"],
+      "include": [
+        "scripts/**",
+        "**/*.config.{ts,js}",
+        "vitest.config.{ts,js}"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
             "noConsole": "off"
           }
         }
+      }
+    },
+    {
+      "include": [
+        "**/*.md"
+      ],
+      "linter": {
+        "enabled": false
       }
     }
   ],
